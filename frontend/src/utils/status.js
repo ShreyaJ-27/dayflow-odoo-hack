@@ -1,0 +1,1 @@
+export const statusClass = (status) => status.toLowerCase().replace('-', '')
