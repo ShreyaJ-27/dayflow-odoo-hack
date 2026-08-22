@@ -1,16 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PageHeader, SearchInput } from '../components/AdminPageParts'
 import { statusClass } from '../utils/status'
+import { loadStoredValue, saveStoredValue } from '../utils/storage'
 
 const attendanceSeed = [
   ['Maya Nichols', 'MN', 'Design', 'Present', '09:02', '17:34'], ['Rohan Kapoor', 'RK', 'Engineering', 'Present', '08:47', '18:05'], ['Leah Sullivan', 'LS', 'People', 'Half-day', '09:11', '13:02'], ['Arjun Mehta', 'AM', 'Engineering', 'Absent', '-', '-'], ['Sofia Chen', 'SC', 'Finance', 'Present', '08:56', '17:19'], ['Ethan Brooks', 'EB', 'Sales', 'Leave', '-', '-'], ['Nina Patel', 'NP', 'Engineering', 'Present', '09:25', '17:42'], ['Oliver Grant', 'OG', 'Marketing', 'Present', '08:39', '16:58'],
 ]
 
 export function AttendancePage() {
-  const [query, setQuery] = useState('')
-  const [status, setStatus] = useState('All statuses')
-  const [view, setView] = useState('Daily')
-  const [dateOffset, setDateOffset] = useState(0)
+  const [query, setQuery] = useState(() => loadStoredValue('dayflow-attendance-search', ''))
+  const [status, setStatus] = useState(() => loadStoredValue('dayflow-attendance-status', 'All statuses'))
+  const [view, setView] = useState(() => loadStoredValue('dayflow-attendance-view', 'Daily'))
+  const [dateOffset, setDateOffset] = useState(() => loadStoredValue('dayflow-attendance-date-offset', 0))
+  useEffect(() => saveStoredValue('dayflow-attendance-view', view), [view])
+  useEffect(() => saveStoredValue('dayflow-attendance-date-offset', dateOffset), [dateOffset])
+  useEffect(() => saveStoredValue('dayflow-attendance-search', query), [query])
+  useEffect(() => saveStoredValue('dayflow-attendance-status', status), [status])
   const date = new Date(2026, 7, 22 + dateOffset)
   const dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   const filtered = attendanceSeed.filter(([name, , department, currentStatus]) => `${name} ${department}`.toLowerCase().includes(query.toLowerCase()) && (status === 'All statuses' || currentStatus === status))

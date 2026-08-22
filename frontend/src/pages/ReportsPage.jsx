@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PageHeader } from '../components/AdminPageParts'
+import { loadStoredValue, saveStoredValue } from '../utils/storage'
 
 const reportData = {
   'Last 7 days': [68, 74, 71, 82, 78, 88, 84],
@@ -16,8 +17,10 @@ const reportRows = [
 ]
 
 export function ReportsPage() {
-  const [period, setPeriod] = useState('Last 30 days')
-  const [department, setDepartment] = useState('All departments')
+  const [period, setPeriod] = useState(() => loadStoredValue('dayflow-reports-period', 'Last 30 days'))
+  const [department, setDepartment] = useState(() => loadStoredValue('dayflow-reports-department', 'All departments'))
+  useEffect(() => saveStoredValue('dayflow-reports-period', period), [period])
+  useEffect(() => saveStoredValue('dayflow-reports-department', department), [department])
   const values = reportData[period]
   const labels = period === 'This year' ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] : period === 'Last 7 days' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10', 'Week 11', 'Week 12']
   const visibleRows = department === 'All departments' ? reportRows : reportRows.filter(([name]) => name === department)

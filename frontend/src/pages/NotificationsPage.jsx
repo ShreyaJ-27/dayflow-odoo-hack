@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PageHeader, SearchInput } from '../components/AdminPageParts'
+import { loadStoredValue, saveStoredValue } from '../utils/storage'
 
 const initialNotifications = [
   { id: 1, type: 'Leave', title: 'Maya Nichols submitted a leave request', detail: 'Annual leave · Aug 26 - Aug 27', time: '12 minutes ago', initials: 'MN', tone: 'coral', unread: true },
@@ -11,13 +12,17 @@ const initialNotifications = [
 ]
 
 export function NotificationsPage() {
-  const [notifications, setNotifications] = useState(initialNotifications)
-  const [view, setView] = useState('All notifications')
-  const [type, setType] = useState('All types')
-  const [query, setQuery] = useState('')
+  const [notifications, setNotifications] = useState(() => loadStoredValue('dayflow-notifications', initialNotifications))
+  const [view, setView] = useState(() => loadStoredValue('dayflow-notifications-view', 'All notifications'))
+  const [type, setType] = useState(() => loadStoredValue('dayflow-notifications-type', 'All types'))
+  const [query, setQuery] = useState(() => loadStoredValue('dayflow-notifications-search', ''))
   const unreadCount = notifications.filter((notification) => notification.unread).length
   const filtered = notifications.filter((notification) => `${notification.title} ${notification.detail}`.toLowerCase().includes(query.toLowerCase()) && (view === 'All notifications' || notification.unread) && (type === 'All types' || notification.type === type))
   const markRead = (id) => setNotifications((current) => current.map((notification) => notification.id === id ? { ...notification, unread: false } : notification))
   const markAllRead = () => setNotifications((current) => current.map((notification) => ({ ...notification, unread: false })))
+  useEffect(() => saveStoredValue('dayflow-notifications', notifications), [notifications])
+  useEffect(() => saveStoredValue('dayflow-notifications-view', view), [view])
+  useEffect(() => saveStoredValue('dayflow-notifications-type', type), [type])
+  useEffect(() => saveStoredValue('dayflow-notifications-search', query), [query])
   return <><PageHeader eyebrow="Workspace inbox" title="Notifications" copy="Stay close to the decisions and updates that need you." action={<button type="button" className="secondary-button" onClick={markAllRead}>Mark all as read</button>} /><section className="panel notifications-panel"><div className="notification-toolbar"><div className="filter-tabs">{['All notifications', 'Unread'].map((item) => <button type="button" className={view === item ? 'is-selected' : ''} key={item} onClick={() => setView(item)}>{item}{item === 'Unread' && <b>{unreadCount}</b>}</button>)}</div><div className="notification-filters"><SearchInput value={query} onChange={setQuery} placeholder="Search notifications" /><select value={type} onChange={(event) => setType(event.target.value)} aria-label="Filter notification type"><option>All types</option><option>Leave</option><option>Payroll</option><option>Attendance</option><option>People</option><option>System</option></select></div></div><div className="notification-list">{filtered.map((notification) => <article className={`notification-row ${notification.unread ? 'is-unread' : ''}`} key={notification.id}><span className={`table-avatar ${notification.tone}`}>{notification.initials}</span><div className="notification-copy"><div><strong>{notification.title}</strong>{notification.unread && <i className="unread-dot" />}</div><span>{notification.detail}</span><small>{notification.time}</small></div><button type="button" className="notification-read" onClick={() => markRead(notification.id)}>{notification.unread ? 'Mark read' : 'Read'}</button></article>)}{!filtered.length && <div className="empty-state"><strong>No notifications found</strong><span>Try a different filter or search term.</span></div>}</div></section></>
 }

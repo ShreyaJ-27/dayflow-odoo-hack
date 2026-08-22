@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PageHeader, SearchInput } from '../components/AdminPageParts'
 import { statusClass } from '../utils/status'
+import { loadStoredValue, saveStoredValue } from '../utils/storage'
 
 export function EmployeeModal({ employee, onClose, onEdit, onSave, detailOnly = false }) {
   const [draft, setDraft] = useState(employee || { name: '', role: '', department: 'Engineering', email: '', phone: '', joined: 'Aug 22, 2026', status: 'Active', initials: 'NE', tone: 'blue' })
@@ -9,13 +10,16 @@ export function EmployeeModal({ employee, onClose, onEdit, onSave, detailOnly = 
 }
 
 export function PeoplePage({ employees, onAdd, onEdit, onView }) {
-  const [query, setQuery] = useState('')
-  const [department, setDepartment] = useState('All departments')
-  const [page, setPage] = useState(1)
+  const [query, setQuery] = useState(() => loadStoredValue('dayflow-people-search', ''))
+  const [department, setDepartment] = useState(() => loadStoredValue('dayflow-people-department', 'All departments'))
+  const [page, setPage] = useState(() => loadStoredValue('dayflow-people-page', 1))
   const pageSize = 5
   const filtered = employees.filter((employee) => `${employee.name} ${employee.role} ${employee.email}`.toLowerCase().includes(query.toLowerCase()) && (department === 'All departments' || employee.department === department))
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
   const visible = filtered.slice((page - 1) * pageSize, page * pageSize)
   const updateQuery = (value) => { setQuery(value); setPage(1) }
+  useEffect(() => saveStoredValue('dayflow-people-search', query), [query])
+  useEffect(() => saveStoredValue('dayflow-people-department', department), [department])
+  useEffect(() => saveStoredValue('dayflow-people-page', page), [page])
   return <><PageHeader eyebrow="People directory" title="Employees" copy="Manage your people, roles, and team details." action={<button type="button" className="primary-button" onClick={onAdd}><span>+</span> Add employee</button>} /><section className="panel table-panel"><div className="table-toolbar"><SearchInput value={query} onChange={updateQuery} placeholder="Search employees" /><select value={department} onChange={(event) => { setDepartment(event.target.value); setPage(1) }} aria-label="Filter by department"><option>All departments</option><option>Design</option><option>Engineering</option><option>Finance</option><option>Marketing</option><option>People</option><option>Sales</option></select><span className="result-count">{filtered.length} employees</span></div><div className="table-scroll"><table><thead><tr><th>Employee</th><th>Role</th><th>Department</th><th>Status</th><th aria-label="Actions" /></tr></thead><tbody>{visible.map((item) => <tr key={item.id}><td><button type="button" className="person-cell" onClick={() => onView(item)}><span className={`table-avatar ${item.tone}`}>{item.initials}</span><span><strong>{item.name}</strong><small>{item.email}</small></span></button></td><td>{item.role}</td><td>{item.department}</td><td><span className={`status-pill ${statusClass(item.status)}`}>{item.status}</span></td><td><button type="button" className="row-action" onClick={() => onEdit(item)}>Edit</button></td></tr>)}</tbody></table></div>{!visible.length && <div className="empty-state"><strong>No employees found</strong><span>Try a different name or department.</span></div>}<div className="pagination"><span>Showing {visible.length ? (page - 1) * pageSize + 1 : 0}-{Math.min(page * pageSize, filtered.length)} of {filtered.length}</span><div><button type="button" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button><b>{page} / {pageCount}</b><button type="button" disabled={page === pageCount} onClick={() => setPage(page + 1)}>Next</button></div></div></section></>
 }
