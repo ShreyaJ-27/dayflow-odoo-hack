@@ -1,25 +1,233 @@
-import { useState } from 'react'
-import { PageHeader } from '../components/AdminPageParts'
+import React, { useState, useEffect, useCallback } from 'react';
+import { api } from '../services/api';
+import { toast } from 'sonner';
+import {
+  ChartNoAxesCombined,
+  Users,
+  Clock,
+  CalendarCheck2,
+  FileText,
+  AlertCircle,
+  RefreshCw,
+  Download,
+  TrendingUp
+} from 'lucide-react';
 
-const reportData = {
-  'Last 7 days': [68, 74, 71, 82, 78, 88, 84],
-  'Last 30 days': [62, 68, 64, 72, 75, 70, 78, 82, 79, 84, 81, 88],
-  'This year': [58, 61, 64, 67, 65, 71, 74, 76, 79, 82, 86, 88],
+const fmtDate = (v) => v ? new Date(v).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+const fmtCurrency = (v) => v != null ? `₹${Number(v).toLocaleString('en-IN')}` : '—';
+
+function ReportSection({ title, subtitle, icon: Icon, color, children, loading }) {
+  const colorMap = {
+    purple: 'bg-brand-500/10 text-brand-400 border-brand-500/20',
+    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  };
+  return (
+    <div className="rounded-2xl bg-[#131622] border border-[#23273a] overflow-hidden shadow-xl">
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-[#23273a]">
+        <div className={`p-2 rounded-xl border ${colorMap[color]}`}>
+          <Icon className="w-4 h-4" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-white">{title}</h3>
+          {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
+        </div>
+      </div>
+      <div className="p-5">
+        {loading ? (
+          <div className="space-y-2 animate-pulse">
+            {[...Array(4)].map((_, i) => <div key={i} className="h-8 bg-white/5 rounded-lg" />)}
+          </div>
+        ) : children}
+      </div>
+    </div>
+  );
 }
 
-const reportRows = [
-  ['Design', '32', '94%', '$21,400', 'mint'],
-  ['Engineering', '86', '91%', '$64,800', 'blue'],
-  ['People', '18', '96%', '$12,200', 'coral'],
-  ['Finance', '24', '98%', '$17,600', 'amber'],
-  ['Sales', '42', '87%', '$28,900', 'violet'],
-]
+export const ReportsPage = () => {
+  const [data, setData] = useState({
+    attendance: null,
+    leaves: null,
+    payroll: null,
+    employees: null,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-export function ReportsPage() {
-  const [period, setPeriod] = useState('Last 30 days')
-  const [department, setDepartment] = useState('All departments')
-  const values = reportData[period]
-  const labels = period === 'This year' ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] : period === 'Last 7 days' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10', 'Week 11', 'Week 12']
-  const visibleRows = department === 'All departments' ? reportRows : reportRows.filter(([name]) => name === department)
-  return <><PageHeader eyebrow="Business intelligence" title="Reports & analytics" copy="Understand workforce trends and make better decisions." action={<button type="button" className="secondary-button report-export">Export report</button>} /><section className="report-metrics"><article><span className="report-mark mint">AT</span><p>Attendance rate</p><strong>92.4%</strong><small>+3.1% from last period</small></article><article><span className="report-mark coral">LV</span><p>Leave utilization</p><strong>68.2%</strong><small>Within healthy range</small></article><article><span className="report-mark blue">PE</span><p>Headcount</p><strong>248</strong><small>+12 this quarter</small></article><article><span className="report-mark amber">PR</span><p>Payroll total</p><strong>$654k</strong><small>Monthly gross</small></article></section><section className="report-grid"><article className="panel report-chart-panel"><div className="panel-heading"><div><p className="eyebrow">Workforce health</p><h2>Attendance trend</h2></div><div className="report-controls"><select value={department} onChange={(event) => setDepartment(event.target.value)} aria-label="Filter report by department"><option>All departments</option><option>Design</option><option>Engineering</option><option>People</option><option>Finance</option><option>Sales</option></select><select value={period} onChange={(event) => setPeriod(event.target.value)} aria-label="Select report period"><option>Last 7 days</option><option>Last 30 days</option><option>This year</option></select></div></div><div className="line-chart"><div className="line-scale"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span></div><div className="line-bars">{values.map((value, index) => <div className="line-column" key={labels[index]}><div className="line-point" style={{ bottom: `${value}%` }} /><div className="line-bar" style={{ height: `${value}%` }} /><small>{labels[index]}</small></div>)}</div></div></article><article className="panel breakdown-panel"><div className="panel-heading"><div><p className="eyebrow">Current workforce</p><h2>Attendance mix</h2></div></div><div className="donut-chart"><div><strong>92%</strong><span>present</span></div></div><div className="breakdown-list"><span><i className="dot mint" />Present<strong>219</strong></span><span><i className="dot amber" />Half-day<strong>12</strong></span><span><i className="dot coral" />Absent<strong>10</strong></span><span><i className="dot blue" />On leave<strong>7</strong></span></div></article></section><section className="panel department-report"><div className="panel-heading"><div><p className="eyebrow">Team comparison</p><h2>Department performance</h2></div><span className="result-count">{visibleRows.length} teams</span></div><div className="table-scroll"><table><thead><tr><th>Department</th><th>Headcount</th><th>Attendance</th><th>Monthly payroll</th><th>Trend</th></tr></thead><tbody>{visibleRows.map(([name, count, attendance, payroll, tone]) => <tr key={name}><td><span className="report-team"><span className={`table-avatar ${tone}`}>{name.slice(0, 2).toUpperCase()}</span><strong>{name}</strong></span></td><td>{count}</td><td><strong className="positive-value">{attendance}</strong></td><td>{payroll}</td><td><span className="trend-up">+ {name === 'Sales' ? '1.8%' : '4.2%'}</span></td></tr>)}</tbody></table></div></section></>
-}
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [att, lv, pay, emp] = await Promise.allSettled([
+        api.reportAttendance(),
+        api.reportLeaves(),
+        api.reportPayroll(),
+        api.reportEmployees(),
+      ]);
+      setData({
+        attendance: att.status === 'fulfilled' ? att.value.data : null,
+        leaves: lv.status === 'fulfilled' ? lv.value.data : null,
+        payroll: pay.status === 'fulfilled' ? pay.value.data : null,
+        employees: emp.status === 'fulfilled' ? emp.value.data : null,
+      });
+    } catch (err) {
+      setError(err.message || 'Failed to load reports');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const AttendanceSummary = () => {
+    if (!data.attendance) return <p className="text-xs text-slate-500">No data available.</p>;
+    const records = Array.isArray(data.attendance) ? data.attendance : (data.attendance.records || []);
+    const summary = {};
+    records.forEach((r) => { summary[r.status] = (summary[r.status] || 0) + 1; });
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        {Object.entries(summary).map(([status, count]) => (
+          <div key={status} className="p-3 rounded-xl bg-[#161928] border border-[#23273a]">
+            <p className="text-[10px] text-slate-500 font-semibold uppercase">{status.replace('_', ' ')}</p>
+            <p className="text-xl font-black text-white mt-0.5">{count}</p>
+          </div>
+        ))}
+        {Object.keys(summary).length === 0 && <p className="text-xs text-slate-500 col-span-2">No attendance records found.</p>}
+      </div>
+    );
+  };
+
+  const LeavesSummary = () => {
+    if (!data.leaves) return <p className="text-xs text-slate-500">No data available.</p>;
+    const records = Array.isArray(data.leaves) ? data.leaves : (data.leaves.records || []);
+    const counts = { PENDING: 0, APPROVED: 0, REJECTED: 0, CANCELLED: 0 };
+    records.forEach((r) => { if (counts[r.status] !== undefined) counts[r.status]++; });
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: 'Pending', count: counts.PENDING, color: 'text-amber-400' },
+          { label: 'Approved', count: counts.APPROVED, color: 'text-emerald-400' },
+          { label: 'Rejected', count: counts.REJECTED, color: 'text-rose-400' },
+          { label: 'Cancelled', count: counts.CANCELLED, color: 'text-slate-400' },
+        ].map((item) => (
+          <div key={item.label} className="p-3 rounded-xl bg-[#161928] border border-[#23273a]">
+            <p className="text-[10px] text-slate-500 font-semibold uppercase">{item.label}</p>
+            <p className={`text-xl font-black mt-0.5 ${item.color}`}>{item.count}</p>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const PayrollSummary = () => {
+    if (!data.payroll) return <p className="text-xs text-slate-500">No data available.</p>;
+    const records = Array.isArray(data.payroll) ? data.payroll : (data.payroll.records || []);
+    const total = records.reduce((sum, r) => sum + (Number(r.netSalary) || 0), 0);
+    const avg = records.length ? Math.round(total / records.length) : 0;
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: 'Total Monthly', value: fmtCurrency(total), color: 'text-brand-300' },
+          { label: 'Avg. Net Salary', value: fmtCurrency(avg), color: 'text-emerald-300' },
+          { label: 'Records', value: records.length, color: 'text-white' },
+        ].map((item) => (
+          <div key={item.label} className="p-3 rounded-xl bg-[#161928] border border-[#23273a]">
+            <p className="text-[10px] text-slate-500 font-semibold uppercase">{item.label}</p>
+            <p className={`text-xl font-black mt-0.5 ${item.color}`}>{item.value}</p>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const EmployeesSummary = () => {
+    if (!data.employees) return <p className="text-xs text-slate-500">No data available.</p>;
+    const records = Array.isArray(data.employees) ? data.employees : (data.employees.records || []);
+    const deptMap = {};
+    const statusMap = {};
+    records.forEach((e) => {
+      const dept = e.department || 'Unknown';
+      deptMap[dept] = (deptMap[dept] || 0) + 1;
+      const st = e.employmentStatus || 'Unknown';
+      statusMap[st] = (statusMap[st] || 0) + 1;
+    });
+    return (
+      <div className="space-y-4">
+        <div>
+          <p className="text-[10px] text-slate-500 font-semibold uppercase mb-2">By Status</p>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(statusMap).map(([status, count]) => (
+              <div key={status} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#161928] border border-[#23273a]">
+                <span className="text-xs text-slate-400">{status.replace('_', ' ')}</span>
+                <span className="text-sm font-bold text-white">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-[10px] text-slate-500 font-semibold uppercase mb-2">By Department</p>
+          <div className="space-y-1.5">
+            {Object.entries(deptMap).sort(([, a], [, b]) => b - a).slice(0, 6).map(([dept, count]) => (
+              <div key={dept} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#161928] border border-[#23273a]">
+                <span className="text-xs text-slate-400">{dept}</span>
+                <span className="text-xs font-bold text-white">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-12">
+        <AlertCircle className="w-8 h-8 text-rose-400" />
+        <p className="text-sm text-slate-400">{error}</p>
+        <button onClick={load} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold">
+          <RefreshCw className="w-4 h-4" />Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-white">Reports & Analytics</h1>
+          <p className="text-sm text-slate-400 mt-1">Organization-wide insights across all modules.</p>
+        </div>
+        <button
+          onClick={load}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1e2235] hover:bg-[#232845] border border-slate-700/60 text-xs font-semibold text-slate-200 hover:text-white transition-all"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <ReportSection title="Attendance Report" subtitle="Status breakdown" icon={Clock} color="emerald" loading={loading}>
+          <AttendanceSummary />
+        </ReportSection>
+
+        <ReportSection title="Leave Report" subtitle="Request status summary" icon={CalendarCheck2} color="amber" loading={loading}>
+          <LeavesSummary />
+        </ReportSection>
+
+        <ReportSection title="Payroll Report" subtitle="Compensation overview" icon={TrendingUp} color="purple" loading={loading}>
+          <PayrollSummary />
+        </ReportSection>
+
+        <ReportSection title="Employee Report" subtitle="Workforce composition" icon={Users} color="blue" loading={loading}>
+          <EmployeesSummary />
+        </ReportSection>
+      </div>
+    </div>
+  );
+};
+
+export default ReportsPage;

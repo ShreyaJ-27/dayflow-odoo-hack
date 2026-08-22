@@ -1,46 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import {
-  initialEmployees,
-  initialAttendance,
-  weeklyAttendanceMatrix,
-  initialLeaveRequests,
-  initialNotifications
-} from '../data/mockData';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { api, session } from '../services/api';
 
 const HRMSContext = createContext(null);
 
 export const HRMSProvider = ({ children }) => {
-  // Current active role: 'admin' or 'hr_officer' (persisted in localStorage)
-  const [role, setRole] = useState(() => {
-    const saved = localStorage.getItem('dayflow_role');
-    return saved === 'hr_officer' ? 'hr_officer' : 'admin';
-  });
-
-  // Current logged-in profile synced with role
-  const [currentUser, setCurrentUser] = useState(() => {
-    return {
-      name: role === 'admin' ? 'Elena Vance' : 'Amara Okonjo',
-      email: role === 'admin' ? 'elena.vance@dayflow.io' : 'amara.okonjo@dayflow.io',
-      title: role === 'admin' ? 'Administrator' : 'HR Officer',
-      avatar: role === 'admin' 
-        ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
-        : 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
-    };
-  });
-
-  useEffect(() => {
-    localStorage.setItem('dayflow_role', role);
-    setCurrentUser({
-      name: role === 'admin' ? 'Elena Vance' : 'Amara Okonjo',
-      email: role === 'admin' ? 'elena.vance@dayflow.io' : 'amara.okonjo@dayflow.io',
-      title: role === 'admin' ? 'Administrator' : 'HR Officer',
-      avatar: role === 'admin' 
-        ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
-        : 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
-    });
-  }, [role]);
-
-  // Toast System (anchored top-right)
+  // Toast system
   const [toasts, setToasts] = useState([]);
 
   const addToast = ({ type = 'info', title, message }) => {
@@ -55,20 +19,116 @@ export const HRMSProvider = ({ children }) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Employees State
-  const [employees, setEmployees] = useState(() => {
-    const saved = localStorage.getItem('dayflow_employees');
-    return saved ? JSON.parse(saved) : initialEmployees;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('dayflow_employees', JSON.stringify(employees));
-  }, [employees]);
-
-  // Selected Employee for Modal View/Edit
+  // State
+  const [employees, setEmployees] = useState([]);
+  const [attendance, setAttendance] = useState([]);
+  const [weeklyAttendance, setWeeklyAttendance] = useState([]);
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
 
+  // Transform backend employee profile to UI format
+  const formatEmployee = (p) => ({
+    id: p.id,
+    userId: p.userId,
+    employeeId: p.user?.employeeId || p.id,
+    name: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Staff Member',
+    firstName: p.firstName || '',
+    lastName: p.lastName || '',
+    email: p.user?.email || '',
+    role: p.designation || 'Staff Member',
+    department: p.department || 'General',
+    employmentStatus: p.employmentStatus === 'ACTIVE' ? 'Active' : p.employmentStatus === 'ON_LEAVE' ? 'On Leave' : 'Inactive',
+    phone: p.phone || '—',
+    address: p.address || '—',
+    dob: p.dateOfBirth ? p.dateOfBirth.split('T')[0] : '1995-01-01',
+    joiningDate: p.joiningDate ? p.joiningDate.split('T')[0] : '2023-01-01',
+    avatar: p.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.firstName || 'S')}+${encodeURIComponent(p.lastName || 'M')}&background=8b5cf6&color=fff`,
+    workLocation: p.address || 'Headquarters',
+    manager: 'Elena Vance'
+  });
+
+  // Transform backend attendance to UI format
+  const formatAttendance = (a) => {
+    const fName = a.employee?.firstName || 'Staff';
+    const lName = a.employee?.lastName || 'Member';
+    return {
+      id: a.id,
+      employeeId: a.employeeId,
+      employeeName: `${fName} ${lName}`.trim(),
+      department: a.employee?.department || 'General',
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(fName)}+${encodeURIComponent(lName)}&background=8b5cf6&color=fff`,
+      date: a.date ? a.date.split('T')[0] : selectedDate,
+      checkIn: a.checkIn ? new Date(a.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—',
+      checkOut: a.checkOut ? new Date(a.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—',
+      totalHours: a.checkIn && a.checkOut ? `${Math.max(0, Math.round((new Date(a.checkOut).getTime() - new Date(a.checkIn).getTime()) / 3600000))}h 00m` : '—',
+      status: a.status === 'PRESENT' ? 'Present' : a.status === 'HALF_DAY' ? 'Half-day' : a.status === 'LEAVE' ? 'Leave' : 'Absent',
+      isLate: false,
+      overtime: '-'
+    };
+  };
+
+  // Transform backend leave to UI format
+  const formatLeave = (l) => {
+    const fName = l.employee?.firstName || 'Staff';
+    const lName = l.employee?.lastName || 'Member';
+    const start = new Date(l.startDate);
+    const end = new Date(l.endDate);
+    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+
+    return {
+      id: l.id,
+      employeeId: l.employeeId,
+      employeeName: `${fName} ${lName}`.trim(),
+      department: l.employee?.department || 'General',
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(fName)}+${encodeURIComponent(lName)}&background=8b5cf6&color=fff`,
+      leaveType: l.type === 'PAID' ? 'Paid Leave' : l.type === 'SICK' ? 'Sick Leave' : 'Unpaid Leave',
+      startDate: l.startDate ? l.startDate.split('T')[0] : '',
+      endDate: l.endDate ? l.endDate.split('T')[0] : '',
+      totalDays: days,
+      reason: l.remarks || 'Personal / General leave',
+      status: l.status === 'APPROVED' ? 'Approved' : l.status === 'REJECTED' ? 'Rejected' : l.status === 'CANCELLED' ? 'Cancelled' : 'Pending',
+      adminRemarks: l.reviewerComment || '',
+      appliedOn: l.createdAt ? l.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]
+    };
+  };
+
+  // Load all real data from API
+  const refreshData = useCallback(async () => {
+    if (!session.token) return;
+    setLoadingData(true);
+    try {
+      const [empRes, attRes, leaveRes] = await Promise.allSettled([
+        api.employees('?limit=100'),
+        api.allAttendance('?limit=100'),
+        api.allLeaves()
+      ]);
+
+      if (empRes.status === 'fulfilled' && Array.isArray(empRes.value.data)) {
+        setEmployees(empRes.value.data.map(formatEmployee));
+      }
+
+      if (attRes.status === 'fulfilled' && Array.isArray(attRes.value.data)) {
+        setAttendance(attRes.value.data.map(formatAttendance));
+      }
+
+      if (leaveRes.status === 'fulfilled' && Array.isArray(leaveRes.value.data)) {
+        setLeaveRequests(leaveRes.value.data.map(formatLeave));
+      }
+    } catch {
+      // Ignore initial load background errors
+    } finally {
+      setLoadingData(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
+
+  // Modal actions
   const openEmployeeProfile = (empId) => {
     setSelectedEmployeeId(empId);
     setIsProfileModalOpen(true);
@@ -79,103 +139,157 @@ export const HRMSProvider = ({ children }) => {
     setSelectedEmployeeId(null);
   };
 
-  const updateEmployee = (updatedEmployee) => {
-    setEmployees((prev) =>
-      prev.map((emp) => (emp.id === updatedEmployee.id ? updatedEmployee : emp))
-    );
-    // Also sync in attendance if name or avatar or department changed
-    setAttendance((prev) =>
-      prev.map((att) =>
-        att.employeeId === updatedEmployee.id
-          ? {
-              ...att,
-              employeeName: updatedEmployee.name,
-              department: updatedEmployee.department,
-              avatar: updatedEmployee.avatar
-            }
-          : att
-      )
-    );
-    // Also sync in leave requests
-    setLeaveRequests((prev) =>
-      prev.map((lev) =>
-        lev.employeeId === updatedEmployee.id
-          ? {
-              ...lev,
-              employeeName: updatedEmployee.name,
-              department: updatedEmployee.department,
-              avatar: updatedEmployee.avatar
-            }
-          : lev
-      )
-    );
-    addToast({
-      type: 'success',
-      title: 'Profile Updated',
-      message: `Changes for ${updatedEmployee.name} have been saved successfully.`
-    });
-  };
+  // Employee update
+  const updateEmployee = async (updatedEmployee) => {
+    try {
+      const payload = {
+        firstName: updatedEmployee.firstName || updatedEmployee.name?.split(' ')[0],
+        lastName: updatedEmployee.lastName || updatedEmployee.name?.split(' ').slice(1).join(' '),
+        phone: updatedEmployee.phone,
+        department: updatedEmployee.department,
+        designation: updatedEmployee.role,
+        address: updatedEmployee.address,
+        employmentStatus: updatedEmployee.employmentStatus === 'Active' ? 'ACTIVE' : updatedEmployee.employmentStatus === 'On Leave' ? 'ON_LEAVE' : 'INACTIVE'
+      };
 
-  const addEmployee = (newEmpData) => {
-    const id = `EMP-0${employees.length + 1}`.replace('010', '010');
-    const fullEmployee = {
-      id,
-      avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
-      ...newEmpData
-    };
-    setEmployees((prev) => [fullEmployee, ...prev]);
-
-    // Also add to attendance list
-    const newAtt = {
-      id: `ATT-${Date.now().toString().slice(-4)}`,
-      employeeId: fullEmployee.id,
-      employeeName: fullEmployee.name,
-      department: fullEmployee.department,
-      avatar: fullEmployee.avatar,
-      date: selectedDate,
-      checkIn: '09:00 AM',
-      checkOut: '05:00 PM',
-      totalHours: '8h 00m',
-      status: 'Present',
-      isLate: false,
-      overtime: '-'
-    };
-    setAttendance((prev) => [newAtt, ...prev]);
-
-    addToast({
-      type: 'success',
-      title: 'Employee Added',
-      message: `${fullEmployee.name} (${fullEmployee.role}) registered in directory.`
-    });
-  };
-
-  const deleteEmployee = (id) => {
-    const emp = employees.find((e) => e.id === id);
-    setEmployees((prev) => prev.filter((e) => e.id !== id));
-    if (selectedEmployeeId === id) {
-      closeEmployeeProfile();
+      await api.updateEmployee(updatedEmployee.id, payload);
+      setEmployees((prev) =>
+        prev.map((emp) => (emp.id === updatedEmployee.id ? { ...emp, ...updatedEmployee } : emp))
+      );
+      addToast({
+        type: 'success',
+        title: 'Profile Updated',
+        message: `Changes for ${updatedEmployee.name} have been saved successfully.`
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Update Failed',
+        message: err.message || 'Could not update employee'
+      });
     }
+  };
+
+  // Leave Actions
+  const approveLeave = async (leaveId, adminRemarks = 'Approved by Admin.') => {
+    try {
+      await api.approveLeave(leaveId, adminRemarks);
+      setLeaveRequests((prev) =>
+        prev.map((req) =>
+          req.id === leaveId
+            ? { ...req, status: 'Approved', adminRemarks: adminRemarks || 'Approved' }
+            : req
+        )
+      );
+      addToast({
+        type: 'success',
+        title: 'Leave Approved',
+        message: 'Leave request has been approved in the system.'
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Approval Failed',
+        message: err.message || 'Unable to approve leave'
+      });
+    }
+  };
+
+  const rejectLeave = async (leaveId, adminRemarks = 'Request declined.') => {
+    try {
+      await api.rejectLeave(leaveId, adminRemarks);
+      setLeaveRequests((prev) =>
+        prev.map((req) =>
+          req.id === leaveId
+            ? { ...req, status: 'Rejected', adminRemarks: adminRemarks || 'Declined' }
+            : req
+        )
+      );
+      addToast({
+        type: 'error',
+        title: 'Leave Rejected',
+        message: 'Leave request was declined.'
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Rejection Failed',
+        message: err.message || 'Unable to reject leave'
+      });
+    }
+  };
+
+  const bulkApproveLeaves = async (leaveIds, adminRemarks = 'Bulk approved by Admin.') => {
+    for (const id of leaveIds) {
+      try {
+        await api.approveLeave(id, adminRemarks);
+      } catch {}
+    }
+    setLeaveRequests((prev) =>
+      prev.map((req) =>
+        leaveIds.includes(req.id)
+          ? { ...req, status: 'Approved', adminRemarks }
+          : req
+      )
+    );
     addToast({
-      type: 'info',
-      title: 'Employee Removed',
-      message: `${emp?.name || 'Employee'} removed from registry.`
+      type: 'success',
+      title: 'Bulk Approval Complete',
+      message: `Successfully processed ${leaveIds.length} requests.`
     });
   };
 
-  // Attendance State
-  const [selectedDate, setSelectedDate] = useState('2026-08-22');
-  const [attendance, setAttendance] = useState(() => {
-    const saved = localStorage.getItem('dayflow_attendance');
-    return saved ? JSON.parse(saved) : initialAttendance;
-  });
+  const bulkRejectLeaves = async (leaveIds, adminRemarks = 'Bulk declined by Admin.') => {
+    for (const id of leaveIds) {
+      try {
+        await api.rejectLeave(id, adminRemarks);
+      } catch {}
+    }
+    setLeaveRequests((prev) =>
+      prev.map((req) =>
+        leaveIds.includes(req.id)
+          ? { ...req, status: 'Rejected', adminRemarks }
+          : req
+      )
+    );
+    addToast({
+      type: 'error',
+      title: 'Bulk Rejection Complete',
+      message: `Declined ${leaveIds.length} requests.`
+    });
+  };
 
-  const [weeklyAttendance, setWeeklyAttendance] = useState(() => {
-    return weeklyAttendanceMatrix;
-  });
+  const applyLeaveRequest = async (newRequest) => {
+    try {
+      const typeMap = {
+        'Paid Leave': 'PAID',
+        'Sick Leave': 'SICK',
+        'Unpaid Leave': 'UNPAID',
+        'Casual Leave': 'PAID'
+      };
+      const payload = {
+        type: typeMap[newRequest.leaveType] || 'PAID',
+        startDate: newRequest.startDate,
+        endDate: newRequest.endDate,
+        remarks: newRequest.reason || ''
+      };
 
-  useEffect(() => {
-    localStorage.setItem('dayflow_attendance', JSON.stringify(attendance));
-  }, [attendance]);
+      const result = await api.applyLeave(payload);
+      const formatted = formatLeave(result.data);
+      setLeaveRequests((prev) => [formatted, ...prev]);
+      addToast({
+        type: 'success',
+        title: 'Leave Submitted',
+        message: 'Your leave application has been submitted for review.'
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Submission Failed',
+        message: err.message || 'Could not submit leave request'
+      });
+    }
+  };
 
   const updateAttendanceRecord = (recordId, updates) => {
     setAttendance((prev) =>
@@ -188,167 +302,31 @@ export const HRMSProvider = ({ children }) => {
     });
   };
 
-  // Time Off / Leave Requests State
-  const [leaveRequests, setLeaveRequests] = useState(() => {
-    const saved = localStorage.getItem('dayflow_leaves');
-    return saved ? JSON.parse(saved) : initialLeaveRequests;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('dayflow_leaves', JSON.stringify(leaveRequests));
-  }, [leaveRequests]);
-
-  const approveLeave = (leaveId, adminRemarks = 'Approved by Admin.') => {
-    setLeaveRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === leaveId) {
-          return {
-            ...req,
-            status: 'Approved',
-            adminRemarks: adminRemarks || 'Approved by Admin.'
-          };
-        }
-        return req;
-      })
-    );
-
-    const req = leaveRequests.find((r) => r.id === leaveId);
-    addToast({
-      type: 'success',
-      title: 'Leave Approved',
-      message: `${req?.employeeName}'s ${req?.leaveType} request was approved.`
-    });
-  };
-
-  const rejectLeave = (leaveId, adminRemarks = 'Request declined.') => {
-    setLeaveRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === leaveId) {
-          return {
-            ...req,
-            status: 'Rejected',
-            adminRemarks: adminRemarks || 'Declined by Admin.'
-          };
-        }
-        return req;
-      })
-    );
-
-    const req = leaveRequests.find((r) => r.id === leaveId);
-    addToast({
-      type: 'error',
-      title: 'Leave Rejected',
-      message: `${req?.employeeName}'s ${req?.leaveType} request was rejected.`
-    });
-  };
-
-  const bulkApproveLeaves = (leaveIds, adminRemarks = 'Bulk approved by Admin.') => {
-    if (!leaveIds || leaveIds.length === 0) return;
-    setLeaveRequests((prev) =>
-      prev.map((req) =>
-        leaveIds.includes(req.id)
-          ? { ...req, status: 'Approved', adminRemarks: adminRemarks || 'Bulk approved by Admin.' }
-          : req
-      )
-    );
-    addToast({
-      type: 'success',
-      title: 'Bulk Approval Complete',
-      message: `Successfully approved ${leaveIds.length} leave requests.`
-    });
-  };
-
-  const bulkRejectLeaves = (leaveIds, adminRemarks = 'Bulk declined by Admin.') => {
-    if (!leaveIds || leaveIds.length === 0) return;
-    setLeaveRequests((prev) =>
-      prev.map((req) =>
-        leaveIds.includes(req.id)
-          ? { ...req, status: 'Rejected', adminRemarks: adminRemarks || 'Bulk declined by Admin.' }
-          : req
-      )
-    );
-    addToast({
-      type: 'error',
-      title: 'Bulk Rejection Complete',
-      message: `Declined ${leaveIds.length} leave requests.`
-    });
-  };
-
-  const applyLeaveRequest = (newRequest) => {
-    const newId = `LEV-${Date.now().toString().slice(-3)}`;
-    const fullRequest = {
-      id: newId,
-      appliedOn: new Date().toISOString().split('T')[0],
-      status: 'Pending',
-      adminRemarks: '',
-      ...newRequest
-    };
-    setLeaveRequests((prev) => [fullRequest, ...prev]);
-    addToast({
-      type: 'info',
-      title: 'Leave Request Submitted',
-      message: `Request for ${fullRequest.employeeName} logged.`
-    });
-  };
-
-  // Notifications State
-  const [notifications, setNotifications] = useState(initialNotifications);
-
-  const markAllNotificationsAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
-  };
-
-  const markNotificationAsRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
-    );
-  };
-
-  const toggleRole = () => {
-    const newRole = role === 'admin' ? 'hr_officer' : 'admin';
-    setRole(newRole);
-    addToast({
-      type: 'info',
-      title: `Switched to ${newRole === 'admin' ? 'Administrator' : 'HR Officer'}`,
-      message:
-        newRole === 'admin'
-          ? 'Full access granted including sensitive Salary Info.'
-          : 'HR Officer view active. Salary data is restricted.'
-    });
-  };
-
   const pendingLeavesCount = leaveRequests.filter((r) => r.status === 'Pending').length;
 
   return (
     <HRMSContext.Provider
       value={{
-        role,
-        setRole,
-        toggleRole,
-        currentUser,
         employees,
-        updateEmployee,
-        addEmployee,
-        deleteEmployee,
+        attendance,
+        weeklyAttendance,
+        leaveRequests,
+        selectedDate,
+        setSelectedDate,
         selectedEmployeeId,
         isProfileModalOpen,
         openEmployeeProfile,
         closeEmployeeProfile,
-        selectedDate,
-        setSelectedDate,
-        attendance,
-        weeklyAttendance,
+        updateEmployee,
         updateAttendanceRecord,
-        leaveRequests,
         approveLeave,
         rejectLeave,
         bulkApproveLeaves,
         bulkRejectLeaves,
         applyLeaveRequest,
         pendingLeavesCount,
-        notifications,
-        markAllNotificationsAsRead,
-        markNotificationAsRead,
+        refreshData,
+        loadingData,
         toasts,
         addToast,
         removeToast
@@ -366,3 +344,5 @@ export const useHRMS = () => {
   }
   return context;
 };
+
+export default HRMSContext;
