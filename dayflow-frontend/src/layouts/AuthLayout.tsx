@@ -1,6 +1,39 @@
-import { Outlet } from "react-router-dom";
-import { ArrowUpRight } from 'lucide-react';
+import { Outlet } from 'react-router-dom'
 
-export function AuthLayout( ) {
-  return <main className="grid min-h-screen bg-(--canvas) lg:grid-cols-[0.9fr_1.1fr]"><section className="hidden bg-(--brand-dark) p-10 text-white lg:flex lg:flex-col lg:justify-between"><a href="/login" className="font-display text-xl font-bold tracking-tight">dayflow<span className="text-[#b9dfc7]">.</span></a><div className="max-w-md"><p className="mb-5 text-sm font-semibold uppercase tracking-[0.16em] text-[#b9dfc7]">People, in rhythm</p><h1 className="font-display text-5xl font-semibold leading-[1.05]">A calmer way to work together.</h1><p className="mt-6 text-base leading-7 text-[#d6e9dc]">One thoughtful home for the everyday moments that keep your team moving.</p></div><p className="text-xs text-[#b9dfc7]">© 2026 Dayflow HR</p></section><section className="flex items-center justify-center p-6 sm:p-10"><div className="w-full max-w-md"><div className="mb-10 flex items-center justify-between lg:hidden"><a href="/login" className="font-display text-xl font-bold">dayflow<span className="text-(--brand)">.</span></a><ArrowUpRight size={18} className="text-(--brand)" /></div><Outlet /></div></section></main>
+export function AuthLayout() {
+  return (
+    <main className="sketch-auth">
+      <div className="sketch-auth-grid">
+        <section className="sketch-note">
+          <p className="text-sm">Human Resource Management System</p>
+          <span className="brand-label mt-2">Complete Octopus</span>
+
+          <h1 className="mt-14">
+            Dayflow
+            <br />
+            HR board
+          </h1>
+
+          <p className="mt-8 max-w-xl text-lg leading-8 text-(--muted)">
+            Sign in, register, then land on employee cards, attendance,
+            time off, profile, and payroll screens drawn like the project
+            slides.
+          </p>
+
+          <span className="auth-arrow" aria-hidden="true" />
+        </section>
+
+        <section className="sketch-auth-card">
+          <div className="mb-8 text-center">
+            <a href="/login" className="font-display text-3xl font-bold">
+              dayflow
+              <span className="text-[#ff747c]">.</span>
+            </a>
+          </div>
+
+          <Outlet />
+        </section>
+      </div>
+    </main>
+  )
 }

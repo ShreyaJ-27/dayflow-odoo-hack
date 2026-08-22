@@ -1,9 +1,90 @@
-import { CalendarDays, Clock3, FileText, LayoutDashboard, UserRound, LogOut } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { LogOut } from 'lucide-react'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Avatar } from '../components/ui/Avatar'
+import { useAuth } from '../auth/AuthContext'
 
-const navigation = [{ label: 'Overview', to: '/employee', icon: LayoutDashboard }, { label: 'My profile', to: '/employee/profile', icon: UserRound }, { label: 'Attendance', to: '/employee/attendance', icon: Clock3 }, { label: 'Time off', to: '/employee/time-off', icon: CalendarDays }, { label: 'Payroll', to: '/employee/payroll', icon: FileText }]
+const navigation = [
+  {
+    label: 'Employees',
+    to: '/employee',
+  },
+  {
+    label: 'My Profile',
+    to: '/employee/profile',
+  },
+  {
+    label: 'Attendance',
+    to: '/employee/attendance',
+  },
+  {
+    label: 'Time Off',
+    to: '/employee/time-off',
+  },
+  {
+    label: 'Payroll',
+    to: '/employee/payroll',
+  },
+]
 
 export function EmployeeLayout() {
-  return <div className="min-h-screen bg-(--canvas)"><aside className="fixed inset-y-0 hidden w-64 border-r border-(--line) bg-white p-6 md:block"><a href="/employee" className="font-display text-2xl font-bold tracking-tight">dayflow<span className="text-(--brand)">.</span></a><nav className="mt-12 space-y-1" aria-label="Employee navigation">{navigation.map(({ label, to, icon: Icon }) => <NavLink key={to} to={to} end={to === '/employee'} className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${isActive ? 'bg-[#e4f1e8] text-(--brand-dark)' : 'text-(--muted) hover:bg-(--canvas)'}`}><Icon size={18} />{label}</NavLink>)}</nav><button type="button" className="absolute bottom-7 left-6 flex items-center gap-3 text-sm font-semibold text-(--muted)"><LogOut size={18} />Sign out</button></aside><div className="md:pl-64"><header className="flex h-20 items-center justify-between border-b border-(--line) bg-white px-5 sm:px-8"><div className="font-display text-xl font-bold md:hidden">dayflow<span className="text-(--brand)">.</span></div><div className="ml-auto flex items-center gap-3"><div className="hidden text-right sm:block"><p className="text-sm font-semibold">Alex Morgan</p><p className="text-xs text-(--muted)">Product design</p></div><Avatar name="Alex Morgan" /></div></header><main className="mx-auto max-w-6xl p-5 sm:p-8"><Outlet /></main></div></div>
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+
+  return (
+    <div className="sketch-board">
+      <div className="sketch-shell">
+        <h1 className="sketch-title">For Employees View</h1>
+
+        <section className="sketch-frame">
+          <nav className="sketch-tabs" aria-label="Employee navigation">
+            <a href="/employee" className="sketch-logo">
+              Company Logo
+            </a>
+
+            {navigation.map(({ label, to }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/employee'}
+                className={({ isActive }) =>
+                  `sketch-tab ${isActive ? 'active' : ''}`
+                }
+              >
+                {label}
+              </NavLink>
+            ))}
+
+            <div className="sketch-user">
+              <span className="sketch-dot" aria-hidden="true" />
+              <Avatar name={user?.fullName ?? 'Employee'} size="sm" />
+            </div>
+          </nav>
+
+          <div className="flex items-center justify-between border-b border-(--line) px-4 py-2">
+            <span className="sketch-pill bg-(--amber)">
+              {user?.fullName ?? 'Employee'}
+            </span>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 border border-(--line) px-3 py-1 text-sm font-bold text-(--muted) transition hover:bg-white/10 hover:text-(--ink)"
+            >
+              <LogOut size={15} />
+              Log Out
+            </button>
+          </div>
+
+          <main className="sketch-content">
+            <Outlet />
+          </main>
+        </section>
+      </div>
+    </div>
+  )
 }
