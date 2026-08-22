@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  HR
+  EMPLOYEE
+}
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+}
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+}
+enum LeaveType {
+  PAID
+  SICK
+  UNPAID
+}
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+enum NotificationType {
+  SYSTEM
+  EMAIL_VERIFICATION
+  LEAVE_SUBMITTED
+  LEAVE_APPROVED
+  LEAVE_REJECTED
+  PAYROLL_UPDATE
+}
+
+model User {
+  id String @id @default(cuid())
+  employeeId String @unique
+  email String @unique
+  passwordHash String
+  role Role @default(EMPLOYEE)
+  emailVerified Boolean @default(false)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  profile EmployeeProfile?
+  refreshTokens RefreshToken[]
+  verificationTokens EmailVerificationToken[]
+  resetTokens PasswordResetToken[]
+  notifications Notification[]
+  reviewedLeaves LeaveRequest[] @relation("reviewer")
+}
+
+model EmployeeProfile {
+  id String @id @default(cuid())
+  userId String @unique
+  firstName String
+  lastName String
+  phone String?
+  address String?
+  dateOfBirth DateTime?
+  emergencyName String?
+  emergencyPhone String?
+  profilePictureUrl String?
+  profilePicturePublicId String?
+  designation String?
+  department String?
+  joiningDate DateTime?
+  employmentStatus EmploymentStatus @default(ACTIVE)
+  managerId String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manager EmployeeProfile? @relation("manager", fields: [managerId], references: [id])
+  reports EmployeeProfile[] @relation("manager")
+  salaryStructures SalaryStructure[]
+  documents Document[]
+  attendance Attendance[]
+  leaveRequests LeaveRequest[]
+}
+
+model SalaryStructure {
+  id String @id @default(cuid())
+  employeeId String
+  basicSalary Decimal @db.Decimal(12,2)
+  allowances Decimal @default(0) @db.Decimal(12,2)
+  deductions Decimal @default(0) @db.Decimal(12,2)
+  grossSalary Decimal @db.Decimal(12,2)
+  netSalary Decimal @db.Decimal(12,2)
+  effectiveDate DateTime
+  createdAt DateTime @default(now())
+  employee EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@index([employeeId, effectiveDate])
+}
+
+model Document {
+  id String @id @default(cuid())
+  employeeId String
+  type String
+  originalFilename String
+  secureUrl String
+  publicId String?
+  mimeType String
+  sizeBytes Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  employee EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@index([employeeId])
+}
+
+model Attendance {
+  id String @id @default(cuid())
+  employeeId String
+  date DateTime @db.Date
+  checkIn DateTime?
+  checkOut DateTime?
+  status AttendanceStatus @default(ABSENT)
+  remarks String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  employee EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@unique([employeeId, date])
+  @@index([date, status])
+}
+
+model LeaveRequest {
+  id String @id @default(cuid())
+  employeeId String
+  type LeaveType
+  startDate DateTime @db.Date
+  endDate DateTime @db.Date
+  remarks String?
+  status LeaveStatus @default(PENDING)
+  reviewerId String?
+  reviewerComment String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  employee EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("reviewer", fields: [reviewerId], references: [id])
+  @@index([employeeId, status])
+  @@index([startDate, endDate])
+}
+
+model Notification {
+  id String @id @default(cuid())
+  recipientId String
+  type NotificationType
+  title String
+  message String
+  read Boolean @default(false)
+  createdAt DateTime @default(now())
+  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  @@index([recipientId, read, createdAt])
+}
+
+model RefreshToken {
+  id String @id @default(cuid())
+  userId String
+  tokenHash String @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, revokedAt])
+}
+
+model EmailVerificationToken {
+  id String @id @default(cuid())
+  userId String
+  tokenHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id String @id @default(cuid())
+  userId String
+  tokenHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
