@@ -22,11 +22,38 @@ router.post('/signup', async (request, response, next) => {
   try {
     const input = signupSchema.parse(request.body);
     if (input.role === 'HR' && input.inviteCode !== env.HR_SIGNUP_INVITE_CODE) { response.status(403).json({ success: false, message: 'Valid HR invite code required', error: { code: 'HR_INVITE_REQUIRED' } }); return; }
-    const user = await prisma.user.create({ data: { employeeId: input.employeeId, email: input.email, passwordHash: await hashPassword(input.password), role: input.role, profile: { create: { firstName: input.firstName, lastName: input.lastName } } }, include: { profile: true } });
+    const user = await prisma.user.create({
+      data: {
+        employeeId: input.employeeId,
+        email: input.email,
+        passwordHash: await hashPassword(input.password),
+        role: input.role,
+        emailVerified: true,
+        isActive: true,
+        profile: {
+          create: {
+            firstName: input.firstName,
+            lastName: input.lastName,
+            employmentStatus: 'ACTIVE',
+            designation: input.role === 'HR' ? 'HR Officer' : 'Employee'
+          }
+        }
+      },
+      include: { profile: true }
+    });
     const rawToken = randomToken();
     await prisma.emailVerificationToken.create({ data: { userId: user.id, tokenHash: tokenHash(rawToken), expiresAt: new Date(Date.now() + 86400000) } });
     void sendVerificationEmail(user.email, rawToken);
-    response.status(201).json({ success: true, message: 'Account created. Verify your email before signing in.', data: { user: safeUser(user), verificationToken: env.NODE_ENV !== 'production' ? rawToken : undefined } });
+    const tokens = await issueTokens(user);
+    response.status(201).json({
+      success: true,
+      message: 'Account created successfully! You can now sign in.',
+      data: {
+        user: safeUser(user),
+        verificationToken: rawToken,
+        ...tokens
+      }
+    });
   } catch (error) { next(error); }
 });
 

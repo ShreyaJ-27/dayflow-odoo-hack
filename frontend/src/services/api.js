@@ -3,7 +3,7 @@
  * Handles all backend communication, JWT token management, and error handling.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
 // ─── Token Session ─────────────────────────────────────────────────────────
 
