@@ -3,10 +3,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { HRMSProvider } from './context/HRMSContext';
 import { TopNav } from './components/common/TopNav';
 import { ToastContainer } from './components/common/Toast';
+import { DashboardPage } from './components/dashboard/DashboardPage';
 import { EmployeeList } from './components/employee/EmployeeList';
 import { AttendancePage } from './components/attendance/AttendancePage';
 import { TimeOffPage } from './components/timeoff/TimeOffPage';
-import { Layers, ShieldCheck, Heart } from 'lucide-react';
+import { Layers, ShieldCheck } from 'lucide-react';
 
 export function App() {
   return (
@@ -19,11 +20,12 @@ export function App() {
           {/* Main Dashboard Workspace Content */}
           <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
             <Routes>
-              <Route path="/" element={<Navigate to="/employees" replace />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/employees" element={<EmployeeList />} />
               <Route path="/attendance" element={<AttendancePage />} />
               <Route path="/time-off" element={<TimeOffPage />} />
-              <Route path="*" element={<Navigate to="/employees" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </main>
 
@@ -42,12 +44,12 @@ export function App() {
                 <span className="flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Enterprise Role Guard
                 </span>
-                <span>v2.4.0-dark</span>
+                <span>v2.5.0-executive</span>
               </div>
             </div>
           </footer>
 
-          {/* Toast Notification Container */}
+          {/* Toast Notification Container (Top-Right) */}
           <ToastContainer />
         </div>
       </BrowserRouter>

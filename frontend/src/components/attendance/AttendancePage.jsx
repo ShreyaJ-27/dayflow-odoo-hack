@@ -6,16 +6,21 @@ import { AttendanceWeeklyGrid } from './AttendanceWeeklyGrid';
 import { MarkAttendanceModal } from './MarkAttendanceModal';
 import { EmployeeProfileModal } from '../employee/EmployeeProfileModal';
 import { StatCard } from '../common/StatCard';
-import { Clock, UserCheck, UserX, AlertTriangle, CalendarRange, TrendingUp } from 'lucide-react';
+import { useMockFetch } from '../../hooks/useMockFetch';
+import { exportAttendanceToCSV } from '../../utils/csvExport';
+import { Clock, UserCheck, UserX, AlertTriangle, CalendarRange, TrendingUp, Download } from 'lucide-react';
 
 export const AttendancePage = () => {
-  const { attendance, selectedDate, setSelectedDate, openEmployeeProfile } = useHRMS();
+  const { attendance, selectedDate, setSelectedDate, openEmployeeProfile, addToast } = useHRMS();
 
   const [viewType, setViewType] = useState('daily'); // 'daily' | 'weekly'
   const [selectedDept, setSelectedDept] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [isMarkModalOpen, setIsMarkModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+
+  // Simulated fetch
+  const { loading } = useMockFetch(attendance, 350, [selectedDate, selectedDept, selectedStatus, viewType]);
 
   // Filtered daily records
   const filteredAttendance = useMemo(() => {
@@ -44,6 +49,15 @@ export const AttendancePage = () => {
     setIsMarkModalOpen(true);
   };
 
+  const handleExportCSV = () => {
+    exportAttendanceToCSV(filteredAttendance, selectedDate);
+    addToast({
+      type: 'success',
+      title: 'CSV Export Started',
+      message: `Downloaded attendance report for ${filteredAttendance.length} employees.`
+    });
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header */}
@@ -56,7 +70,7 @@ export const AttendancePage = () => {
             </span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Organization-wide real-time check-in logs, shifts, daily time tracking, and weekly rosters.
+            Real-time daily check-in auditing, time off logs, shift timesheets, and weekly attendance rosters.
           </p>
         </div>
       </div>
@@ -112,6 +126,7 @@ export const AttendancePage = () => {
         selectedStatus={selectedStatus}
         setSelectedStatus={setSelectedStatus}
         onOpenMarkModal={handleOpenNewMarkModal}
+        onExportCSV={handleExportCSV}
       />
 
       {/* Main Table / Grid View */}
@@ -120,6 +135,7 @@ export const AttendancePage = () => {
           records={filteredAttendance}
           onEditRecord={handleEditRecord}
           onOpenEmployeeProfile={openEmployeeProfile}
+          loading={loading}
         />
       ) : (
         <AttendanceWeeklyGrid onOpenEmployeeProfile={openEmployeeProfile} />

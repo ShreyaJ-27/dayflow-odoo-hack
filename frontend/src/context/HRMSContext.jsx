@@ -10,12 +10,13 @@ import {
 const HRMSContext = createContext(null);
 
 export const HRMSProvider = ({ children }) => {
-  // Current active role: 'admin' or 'hr_officer'
+  // Current active role: 'admin' or 'hr_officer' (persisted in localStorage)
   const [role, setRole] = useState(() => {
-    return localStorage.getItem('dayflow_role') || 'admin';
+    const saved = localStorage.getItem('dayflow_role');
+    return saved === 'hr_officer' ? 'hr_officer' : 'admin';
   });
 
-  // Current logged-in profile
+  // Current logged-in profile synced with role
   const [currentUser, setCurrentUser] = useState(() => {
     return {
       name: role === 'admin' ? 'Elena Vance' : 'Amara Okonjo',
@@ -27,7 +28,6 @@ export const HRMSProvider = ({ children }) => {
     };
   });
 
-  // Keep currentUser synced with role changes
   useEffect(() => {
     localStorage.setItem('dayflow_role', role);
     setCurrentUser({
@@ -40,7 +40,7 @@ export const HRMSProvider = ({ children }) => {
     });
   }, [role]);
 
-  // Toast System
+  // Toast System (anchored top-right)
   const [toasts, setToasts] = useState([]);
 
   const addToast = ({ type = 'info', title, message }) => {
@@ -111,8 +111,8 @@ export const HRMSProvider = ({ children }) => {
     );
     addToast({
       type: 'success',
-      title: 'Employee Updated',
-      message: `Profile changes for ${updatedEmployee.name} have been saved.`
+      title: 'Profile Updated',
+      message: `Changes for ${updatedEmployee.name} have been saved successfully.`
     });
   };
 
@@ -144,8 +144,8 @@ export const HRMSProvider = ({ children }) => {
 
     addToast({
       type: 'success',
-      title: 'Employee Created',
-      message: `${fullEmployee.name} (${fullEmployee.role}) was added successfully.`
+      title: 'Employee Added',
+      message: `${fullEmployee.name} (${fullEmployee.role}) registered in directory.`
     });
   };
 
@@ -158,7 +158,7 @@ export const HRMSProvider = ({ children }) => {
     addToast({
       type: 'info',
       title: 'Employee Removed',
-      message: `${emp?.name || 'Employee'} was removed from the registry.`
+      message: `${emp?.name || 'Employee'} removed from registry.`
     });
   };
 
@@ -183,7 +183,7 @@ export const HRMSProvider = ({ children }) => {
     );
     addToast({
       type: 'success',
-      title: 'Attendance Updated',
+      title: 'Attendance Saved',
       message: 'Attendance record updated successfully.'
     });
   };
@@ -215,7 +215,7 @@ export const HRMSProvider = ({ children }) => {
     const req = leaveRequests.find((r) => r.id === leaveId);
     addToast({
       type: 'success',
-      title: 'Leave Request Approved',
+      title: 'Leave Approved',
       message: `${req?.employeeName}'s ${req?.leaveType} request was approved.`
     });
   };
@@ -237,8 +237,40 @@ export const HRMSProvider = ({ children }) => {
     const req = leaveRequests.find((r) => r.id === leaveId);
     addToast({
       type: 'error',
-      title: 'Leave Request Rejected',
+      title: 'Leave Rejected',
       message: `${req?.employeeName}'s ${req?.leaveType} request was rejected.`
+    });
+  };
+
+  const bulkApproveLeaves = (leaveIds, adminRemarks = 'Bulk approved by Admin.') => {
+    if (!leaveIds || leaveIds.length === 0) return;
+    setLeaveRequests((prev) =>
+      prev.map((req) =>
+        leaveIds.includes(req.id)
+          ? { ...req, status: 'Approved', adminRemarks: adminRemarks || 'Bulk approved by Admin.' }
+          : req
+      )
+    );
+    addToast({
+      type: 'success',
+      title: 'Bulk Approval Complete',
+      message: `Successfully approved ${leaveIds.length} leave requests.`
+    });
+  };
+
+  const bulkRejectLeaves = (leaveIds, adminRemarks = 'Bulk declined by Admin.') => {
+    if (!leaveIds || leaveIds.length === 0) return;
+    setLeaveRequests((prev) =>
+      prev.map((req) =>
+        leaveIds.includes(req.id)
+          ? { ...req, status: 'Rejected', adminRemarks: adminRemarks || 'Bulk declined by Admin.' }
+          : req
+      )
+    );
+    addToast({
+      type: 'error',
+      title: 'Bulk Rejection Complete',
+      message: `Declined ${leaveIds.length} leave requests.`
     });
   };
 
@@ -254,8 +286,8 @@ export const HRMSProvider = ({ children }) => {
     setLeaveRequests((prev) => [fullRequest, ...prev]);
     addToast({
       type: 'info',
-      title: 'Leave Submitted',
-      message: `Leave request for ${fullRequest.employeeName} has been logged.`
+      title: 'Leave Request Submitted',
+      message: `Request for ${fullRequest.employeeName} logged.`
     });
   };
 
@@ -277,7 +309,7 @@ export const HRMSProvider = ({ children }) => {
     setRole(newRole);
     addToast({
       type: 'info',
-      title: `Switched View to ${newRole === 'admin' ? 'Administrator' : 'HR Officer'}`,
+      title: `Switched to ${newRole === 'admin' ? 'Administrator' : 'HR Officer'}`,
       message:
         newRole === 'admin'
           ? 'Full access granted including sensitive Salary Info.'
@@ -310,6 +342,8 @@ export const HRMSProvider = ({ children }) => {
         leaveRequests,
         approveLeave,
         rejectLeave,
+        bulkApproveLeaves,
+        bulkRejectLeaves,
         applyLeaveRequest,
         pendingLeavesCount,
         notifications,

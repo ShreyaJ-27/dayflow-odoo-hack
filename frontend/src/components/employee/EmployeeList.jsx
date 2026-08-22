@@ -4,33 +4,40 @@ import { EmployeeCard } from './EmployeeCard';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
 import { AddEmployeeModal } from './AddEmployeeModal';
 import { StatCard } from '../common/StatCard';
+import { Pagination } from '../common/Pagination';
+import { EmptyState } from '../common/EmptyState';
+import { CardGridSkeleton, TableSkeleton } from '../common/SkeletonLoader';
+import { useMockFetch } from '../../hooks/useMockFetch';
 import {
   Users,
   UserCheck,
-  UserX,
   UserPlus,
   Search,
   Filter,
   LayoutGrid,
   List,
-  ChevronRight,
-  ShieldCheck,
   Building2,
   CalendarDays,
-  Sparkles,
-  AlertCircle
+  ShieldCheck,
+  ArrowUpDown,
+  Sparkles
 } from 'lucide-react';
 import { getStatusBadgeStyle } from '../../utils/helpers';
 
 export const EmployeeList = () => {
-  const { employees, openEmployeeProfile, role } = useHRMS();
+  const { employees, openEmployeeProfile } = useHRMS();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
+  const [sortBy, setSortBy] = useState('name_asc'); // 'name_asc' | 'name_desc' | 'dept_asc' | 'date_desc' | 'date_asc' | 'role_asc'
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(6);
+
+  // Simulated smooth loading transition
+  const { loading } = useMockFetch(employees, 350, [selectedDept, selectedStatus, sortBy]);
 
   // Statistics calculation
   const totalEmployees = employees.length;
@@ -38,9 +45,9 @@ export const EmployeeList = () => {
   const onLeaveEmployees = employees.filter((e) => e.employmentStatus === 'On Leave').length;
   const probationEmployees = employees.filter((e) => e.employmentStatus === 'Probation').length;
 
-  // Filtered list
-  const filteredEmployees = useMemo(() => {
-    return employees.filter((emp) => {
+  // Filtered and Sorted list
+  const filteredAndSortedEmployees = useMemo(() => {
+    let result = employees.filter((emp) => {
       const matchSearch =
         emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         emp.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -52,7 +59,35 @@ export const EmployeeList = () => {
 
       return matchSearch && matchDept && matchStatus;
     });
-  }, [employees, searchTerm, selectedDept, selectedStatus]);
+
+    // Sorting
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case 'name_asc':
+          return a.name.localeCompare(b.name);
+        case 'name_desc':
+          return b.name.localeCompare(a.name);
+        case 'dept_asc':
+          return a.department.localeCompare(b.department) || a.name.localeCompare(b.name);
+        case 'role_asc':
+          return a.role.localeCompare(b.role);
+        case 'date_desc':
+          return new Date(b.joiningDate) - new Date(a.joiningDate);
+        case 'date_asc':
+          return new Date(a.joiningDate) - new Date(b.joiningDate);
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [employees, searchTerm, selectedDept, selectedStatus, sortBy]);
+
+  // Paginated slice
+  const paginatedEmployees = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredAndSortedEmployees.slice(start, start + pageSize);
+  }, [filteredAndSortedEmployees, currentPage, pageSize]);
 
   const departments = ['All', 'Engineering', 'Design', 'Product', 'Human Resources', 'Finance', 'Marketing'];
   const statuses = ['All', 'Active', 'On Leave', 'Probation', 'Inactive'];
@@ -61,22 +96,24 @@ export const EmployeeList = () => {
     setSearchTerm('');
     setSelectedDept('All');
     setSelectedStatus('All');
+    setSortBy('name_asc');
+    setCurrentPage(1);
   };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       
-      {/* Top Welcome & Quick Action Bar */}
+      {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
             <span>Employee Directory</span>
             <span className="text-xs px-2.5 py-1 rounded-full bg-brand-500/15 text-brand-300 border border-brand-500/30 font-medium">
-              {employees.length} Personnel
+              {employees.length} Total Staff
             </span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Manage organization staff profiles, roles, departments, and payroll credentials.
+            Browse staff roster, compensation structures, department allocations, and contact profiles.
           </p>
         </div>
 
@@ -112,7 +149,7 @@ export const EmployeeList = () => {
         <StatCard
           title="On Leave"
           value={onLeaveEmployees}
-          subtitle="Approved time-off"
+          subtitle="Approved PTO today"
           icon={CalendarDays}
           color="blue"
         />
@@ -125,7 +162,7 @@ export const EmployeeList = () => {
         />
       </div>
 
-      {/* Search and Filters Bar */}
+      {/* Search, Sort, and Filters Bar */}
       <div className="p-4 rounded-2xl bg-[#131622] border border-[#23273a] shadow-lg flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
         
         {/* Search Input */}
@@ -133,14 +170,20 @@ export const EmployeeList = () => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search employee by name, role, email, or ID..."
+            placeholder="Search by name, role, email, or employee ID..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full bg-[#161928] border border-[#23273a] focus:border-brand-500 rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none transition-colors"
           />
           {searchTerm && (
             <button
-              onClick={() => setSearchTerm('')}
+              onClick={() => {
+                setSearchTerm('');
+                setCurrentPage(1);
+              }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white"
             >
               Clear
@@ -148,14 +191,35 @@ export const EmployeeList = () => {
           )}
         </div>
 
-        {/* Filter Dropdowns */}
+        {/* Filters and Sorters */}
         <div className="flex flex-wrap items-center gap-2.5">
+          
+          {/* Sorting Dropdown */}
+          <div className="flex items-center gap-1.5 bg-[#161928] border border-[#23273a] rounded-xl px-3 py-1.5">
+            <ArrowUpDown className="w-3.5 h-3.5 text-brand-400" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+            >
+              <option value="name_asc" className="bg-[#131622]">Name (A-Z)</option>
+              <option value="name_desc" className="bg-[#131622]">Name (Z-A)</option>
+              <option value="dept_asc" className="bg-[#131622]">Department (A-Z)</option>
+              <option value="role_asc" className="bg-[#131622]">Role (A-Z)</option>
+              <option value="date_desc" className="bg-[#131622]">Joined (Newest)</option>
+              <option value="date_asc" className="bg-[#131622]">Joined (Oldest)</option>
+            </select>
+          </div>
+
           {/* Department Filter */}
           <div className="flex items-center gap-1.5 bg-[#161928] border border-[#23273a] rounded-xl px-3 py-1.5">
             <Building2 className="w-3.5 h-3.5 text-slate-400" />
             <select
               value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
+              onChange={(e) => {
+                setSelectedDept(e.target.value);
+                setCurrentPage(1);
+              }}
               className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
             >
               {departments.map((d) => (
@@ -171,7 +235,10 @@ export const EmployeeList = () => {
             <Filter className="w-3.5 h-3.5 text-slate-400" />
             <select
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
+              onChange={(e) => {
+                setSelectedStatus(e.target.value);
+                setCurrentPage(1);
+              }}
               className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
             >
               {statuses.map((s) => (
@@ -210,37 +277,44 @@ export const EmployeeList = () => {
         </div>
       </div>
 
-      {/* Main Employee Presentation View */}
-      {filteredEmployees.length === 0 ? (
-        /* Empty State */
-        <div className="p-12 text-center rounded-2xl bg-[#131622] border border-[#23273a] flex flex-col items-center justify-center">
-          <div className="w-14 h-14 rounded-2xl bg-surface-50 border border-slate-700/60 flex items-center justify-center text-slate-400 mb-3">
-            <Search className="w-6 h-6" />
-          </div>
-          <h3 className="text-base font-bold text-white">No employees matched your criteria</h3>
-          <p className="text-xs text-slate-400 max-w-sm mt-1">
-            Try adjusting your search terms, clear active department filters, or add a new team member.
-          </p>
-          <button
-            onClick={clearFilters}
-            className="mt-4 px-4 py-2 text-xs font-semibold bg-brand-500/10 text-brand-300 hover:bg-brand-500/20 border border-brand-500/30 rounded-xl transition-colors"
-          >
-            Clear all filters
-          </button>
-        </div>
+      {/* Main Content Area */}
+      {loading ? (
+        viewMode === 'grid' ? <CardGridSkeleton cards={pageSize} /> : <TableSkeleton rows={pageSize} cols={7} />
+      ) : filteredAndSortedEmployees.length === 0 ? (
+        <EmptyState
+          type="search"
+          title="No employees matched your criteria"
+          description="Try adjusting your search terms, changing the department filter, or registering a new staff member."
+          actionText="Clear all filters"
+          onAction={clearFilters}
+        />
       ) : viewMode === 'grid' ? (
-        /* GRID / CARD VIEW */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {filteredEmployees.map((emp) => (
-            <EmployeeCard key={emp.id} employee={emp} />
-          ))}
+        /* GRID / CARD VIEW WITH PAGINATION */
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            {paginatedEmployees.map((emp) => (
+              <EmployeeCard key={emp.id} employee={emp} />
+            ))}
+          </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredAndSortedEmployees.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+            pageSizeOptions={[6, 9, 12, 24]}
+          />
         </div>
       ) : (
-        /* TABLE VIEW */
-        <div className="overflow-hidden rounded-2xl bg-[#131622] border border-[#23273a] shadow-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#161928] text-slate-400 uppercase font-semibold text-[11px] tracking-wider border-b border-[#23273a]">
+        /* TABLE VIEW WITH STICKY HEADERS & PAGINATION */
+        <div className="rounded-2xl bg-[#131622] border border-[#23273a] shadow-xl overflow-hidden flex flex-col">
+          <div className="overflow-x-auto max-h-[580px]">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="sticky top-0 z-20 bg-[#161928] backdrop-blur-md text-slate-400 uppercase font-semibold text-[11px] tracking-wider border-b border-[#23273a]">
                 <tr>
                   <th className="px-5 py-4">Employee</th>
                   <th className="px-4 py-4">Department</th>
@@ -252,7 +326,7 @@ export const EmployeeList = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#23273a]/60">
-                {filteredEmployees.map((emp) => (
+                {paginatedEmployees.map((emp) => (
                   <tr
                     key={emp.id}
                     onClick={() => openEmployeeProfile(emp.id)}
@@ -311,6 +385,18 @@ export const EmployeeList = () => {
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredAndSortedEmployees.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+            pageSizeOptions={[6, 10, 20, 50]}
+          />
         </div>
       )}
 

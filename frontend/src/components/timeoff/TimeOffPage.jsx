@@ -5,6 +5,9 @@ import { LeaveActionModal } from './LeaveActionModal';
 import { ApplyLeaveModal } from './ApplyLeaveModal';
 import { EmployeeProfileModal } from '../employee/EmployeeProfileModal';
 import { StatCard } from '../common/StatCard';
+import { Modal } from '../common/Modal';
+import { useMockFetch } from '../../hooks/useMockFetch';
+import { exportTimeOffToCSV } from '../../utils/csvExport';
 import {
   CalendarCheck2,
   Clock,
@@ -13,8 +16,10 @@ import {
   Search,
   Filter,
   Plus,
-  Calendar,
-  Sparkles
+  Download,
+  CheckSquare,
+  ShieldAlert,
+  MessageSquare
 } from 'lucide-react';
 
 export const TimeOffPage = () => {
@@ -22,7 +27,10 @@ export const TimeOffPage = () => {
     leaveRequests,
     approveLeave,
     rejectLeave,
-    openEmployeeProfile
+    bulkApproveLeaves,
+    bulkRejectLeaves,
+    openEmployeeProfile,
+    addToast
   } = useHRMS();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,7 +38,18 @@ export const TimeOffPage = () => {
   const [selectedType, setSelectedType] = useState('All');
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
 
-  // Leave Action Modal (Approve / Reject)
+  // Bulk Selection State
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkModal, setBulkModal] = useState({
+    isOpen: false,
+    action: 'approve', // 'approve' | 'reject'
+    remarks: ''
+  });
+
+  // Simulated fetch
+  const { loading } = useMockFetch(leaveRequests, 350, [selectedStatus, selectedType]);
+
+  // Single Action Modal (Approve / Reject)
   const [actionModal, setActionModal] = useState({
     isOpen: false,
     request: null,
@@ -38,7 +57,6 @@ export const TimeOffPage = () => {
   });
 
   // Metrics
-  const totalRequests = leaveRequests.length;
   const pendingCount = leaveRequests.filter((r) => r.status === 'Pending').length;
   const approvedCount = leaveRequests.filter((r) => r.status === 'Approved').length;
   const rejectedCount = leaveRequests.filter((r) => r.status === 'Rejected').length;
@@ -61,6 +79,20 @@ export const TimeOffPage = () => {
       return matchSearch && matchStatus && matchType;
     });
   }, [leaveRequests, searchTerm, selectedStatus, selectedType]);
+
+  const handleToggleSelect = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = (checked, pagePendingIds) => {
+    if (checked) {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...pagePendingIds])));
+    } else {
+      setSelectedIds((prev) => prev.filter((id) => !pagePendingIds.includes(id)));
+    }
+  };
 
   const handleApproveClick = (req) => {
     setActionModal({
@@ -86,9 +118,29 @@ export const TimeOffPage = () => {
     }
   };
 
+  const handleConfirmBulkAction = () => {
+    if (bulkModal.action === 'approve') {
+      bulkApproveLeaves(selectedIds, bulkModal.remarks || 'Bulk authorized by Admin.');
+    } else {
+      bulkRejectLeaves(selectedIds, bulkModal.remarks || 'Bulk declined by Admin.');
+    }
+    setSelectedIds([]);
+    setBulkModal({ isOpen: false, action: 'approve', remarks: '' });
+  };
+
+  const handleExportCSV = () => {
+    exportTimeOffToCSV(filteredRequests);
+    addToast({
+      type: 'success',
+      title: 'CSV Export Generated',
+      message: `Downloaded ${filteredRequests.length} leave request records.`
+    });
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Header */}
+      
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
@@ -100,11 +152,19 @@ export const TimeOffPage = () => {
             )}
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Review PTO requests, sick leave submissions, holiday scheduling, and leave balance auditing.
+            Authorize PTO requests, review medical submissions, manage holiday scheduling, and audit employee balances.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-surface-100 hover:bg-surface-50 border border-slate-700/60 text-slate-200 hover:text-white text-xs font-semibold transition-all shadow-sm"
+          >
+            <Download className="w-4 h-4 text-slate-400" />
+            <span>Export CSV</span>
+          </button>
+
           <button
             onClick={() => setIsApplyModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-accent-purple text-white text-xs font-bold shadow-lg shadow-brand-600/30 hover:shadow-brand-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all"
@@ -120,7 +180,7 @@ export const TimeOffPage = () => {
         <StatCard
           title="Pending Approvals"
           value={pendingCount}
-          subtitle="Requires HR / Admin action"
+          subtitle="Requires officer action"
           icon={Clock}
           color="amber"
         />
@@ -134,7 +194,7 @@ export const TimeOffPage = () => {
         <StatCard
           title="Total Days Granted"
           value={`${totalDaysApproved} days`}
-          subtitle="Accumulated leave hours"
+          subtitle="Accumulated leave balance"
           icon={CalendarCheck2}
           color="purple"
         />
@@ -199,15 +259,54 @@ export const TimeOffPage = () => {
         </div>
       </div>
 
+      {/* Floating Bulk Actions Bar */}
+      {selectedIds.length > 0 && (
+        <div className="p-3.5 px-5 rounded-2xl bg-gradient-to-r from-brand-900/90 via-[#181b2a] to-brand-900/90 border border-brand-500/40 shadow-2xl flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-top-3 duration-200">
+          <div className="flex items-center gap-2.5 text-xs text-white font-semibold">
+            <CheckSquare className="w-4 h-4 text-brand-400" />
+            <span>
+              <strong className="text-brand-300 font-bold">{selectedIds.length}</strong> request{selectedIds.length > 1 ? 's' : ''} selected
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-1.5 rounded-xl bg-surface-100 hover:bg-surface-50 text-slate-300 hover:text-white text-xs font-semibold transition-colors"
+            >
+              Deselect All
+            </button>
+
+            <button
+              onClick={() => setBulkModal({ isOpen: true, action: 'reject', remarks: '' })}
+              className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold transition-colors"
+            >
+              Bulk Reject
+            </button>
+
+            <button
+              onClick={() => setBulkModal({ isOpen: true, action: 'approve', remarks: '' })}
+              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/30 transition-all"
+            >
+              Bulk Approve
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Requests Table */}
       <TimeOffTable
         requests={filteredRequests}
         onApproveClick={handleApproveClick}
         onRejectClick={handleRejectClick}
         onOpenEmployeeProfile={openEmployeeProfile}
+        loading={loading}
+        selectedIds={selectedIds}
+        onToggleSelect={handleToggleSelect}
+        onSelectAll={handleSelectAll}
       />
 
-      {/* Action Dialog (Approve / Reject with remarks) */}
+      {/* Single Action Dialog (Approve / Reject with remarks) */}
       <LeaveActionModal
         isOpen={actionModal.isOpen}
         onClose={() => setActionModal({ isOpen: false, request: null, type: 'approve' })}
@@ -215,6 +314,63 @@ export const TimeOffPage = () => {
         actionType={actionModal.type}
         onConfirm={handleConfirmDecision}
       />
+
+      {/* Bulk Action Confirmation Modal */}
+      {bulkModal.isOpen && (
+        <Modal
+          isOpen={bulkModal.isOpen}
+          onClose={() => setBulkModal({ isOpen: false, action: 'approve', remarks: '' })}
+          title={bulkModal.action === 'approve' ? "Confirm Bulk Leave Approval" : "Confirm Bulk Leave Rejection"}
+          subtitle={`Processing ${selectedIds.length} selected employee requests`}
+          maxWidth="max-w-md"
+        >
+          <div className="space-y-4 text-xs">
+            {bulkModal.action === 'reject' && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-2.5 text-rose-300">
+                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <p className="text-[11px]">
+                  You are rejecting {selectedIds.length} requests in batch. Please provide reasoning below.
+                </p>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5 text-brand-400" />
+                <span>Admin Batch Remark</span>
+              </label>
+              <textarea
+                rows={2}
+                value={bulkModal.remarks}
+                onChange={(e) => setBulkModal((prev) => ({ ...prev, remarks: e.target.value }))}
+                placeholder={bulkModal.action === 'approve' ? "Optional approval note..." : "Reason for declining requests..."}
+                className="w-full bg-[#161928] border border-[#23273a] rounded-xl p-2.5 text-white focus:outline-none focus:border-brand-500 text-xs"
+              />
+            </div>
+
+            <div className="pt-3 border-t border-[#23273a] flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setBulkModal({ isOpen: false, action: 'approve', remarks: '' })}
+                className="px-3.5 py-1.5 rounded-xl bg-surface-100 text-slate-300 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBulkAction}
+                className={`px-4 py-1.5 rounded-xl text-white font-bold shadow-md ${
+                  bulkModal.action === 'approve'
+                    ? 'bg-emerald-600 hover:bg-emerald-500'
+                    : 'bg-rose-600 hover:bg-rose-500'
+                }`}
+              >
+                Confirm {bulkModal.action === 'approve' ? 'Approvals' : 'Rejections'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Apply Leave Modal */}
       <ApplyLeaveModal

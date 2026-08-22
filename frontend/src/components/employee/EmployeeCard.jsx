@@ -1,15 +1,15 @@
 import React from 'react';
 import { useHRMS } from '../../context/HRMSContext';
-import { Mail, Phone, MapPin, Calendar, Briefcase, ChevronRight, ShieldAlert, Sparkles } from 'lucide-react';
+import { Mail, Phone, MapPin, Calendar, ChevronRight } from 'lucide-react';
 import { getStatusBadgeStyle } from '../../utils/helpers';
 
 export const EmployeeCard = ({ employee }) => {
-  const { openEmployeeProfile, role } = useHRMS();
+  const { openEmployeeProfile } = useHRMS();
 
   return (
     <div
       onClick={() => openEmployeeProfile(employee.id)}
-      className="group glass-card rounded-2xl p-5 relative overflow-hidden cursor-pointer hover:border-brand-500/40 hover:shadow-[0_8px_30px_rgba(168,85,247,0.12)] transition-all duration-200 flex flex-col justify-between"
+      className="group glass-card rounded-2xl p-5 relative overflow-hidden cursor-pointer flex flex-col justify-between"
     >
       {/* Top row: Avatar + Name + Status */}
       <div>
@@ -19,15 +19,15 @@ export const EmployeeCard = ({ employee }) => {
               <img
                 src={employee.avatar}
                 alt={employee.name}
-                className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl object-cover ring-2 ring-white/10 group-hover:ring-brand-500/60 transition-all duration-200"
+                className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl object-cover ring-2 ring-white/10 group-hover:ring-brand-500/80 transition-all duration-300 shadow-md"
               />
               <span
                 className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-[#141624] ${
                   employee.employmentStatus === 'Active'
-                    ? 'bg-emerald-500'
+                    ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
                     : employee.employmentStatus === 'On Leave'
-                    ? 'bg-brand-500'
-                    : 'bg-amber-500'
+                    ? 'bg-brand-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]'
+                    : 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]'
                 }`}
               />
             </div>
@@ -51,15 +51,15 @@ export const EmployeeCard = ({ employee }) => {
         {/* Contact details */}
         <div className="mt-4 pt-3.5 border-t border-white/5 space-y-2 text-xs text-slate-400">
           <div className="flex items-center gap-2 truncate">
-            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0 group-hover:text-brand-400 transition-colors" />
             <span className="truncate text-slate-300">{employee.email}</span>
           </div>
           <div className="flex items-center gap-2 truncate">
-            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0 group-hover:text-brand-400 transition-colors" />
             <span className="text-slate-300">{employee.phone}</span>
           </div>
           <div className="flex items-center gap-2 truncate">
-            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 group-hover:text-brand-400 transition-colors" />
             <span className="truncate text-slate-300">{employee.workLocation}</span>
           </div>
         </div>
@@ -72,8 +72,8 @@ export const EmployeeCard = ({ employee }) => {
           <span>Joined {new Date(employee.joiningDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
         </div>
 
-        <div className="flex items-center gap-1 text-xs font-semibold text-brand-400 group-hover:text-brand-300 group-hover:translate-x-0.5 transition-all">
-          <span>Profile</span>
+        <div className="flex items-center gap-1 text-xs font-semibold text-brand-400 group-hover:text-brand-300 group-hover:translate-x-1 transition-transform">
+          <span>View Profile</span>
           <ChevronRight className="w-3.5 h-3.5" />
         </div>
       </div>

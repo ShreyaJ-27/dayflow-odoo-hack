@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, ChevronRight, Calendar, Filter, Building2, Clock, CalendarRange, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Filter, Building2, Clock, CalendarRange, Plus, Download } from 'lucide-react';
 
 export const AttendanceDateFilter = ({
   selectedDate,
@@ -10,7 +10,8 @@ export const AttendanceDateFilter = ({
   setSelectedDept,
   selectedStatus,
   setSelectedStatus,
-  onOpenMarkModal
+  onOpenMarkModal,
+  onExportCSV
 }) => {
   const departments = ['All', 'Engineering', 'Design', 'Product', 'Human Resources', 'Finance', 'Marketing'];
   const statuses = ['All', 'Present', 'Absent', 'Half-day', 'Leave'];
@@ -111,7 +112,7 @@ export const AttendanceDateFilter = ({
         )}
       </div>
 
-      {/* RIGHT: Filters & Mark Action */}
+      {/* RIGHT: Filters & Actions */}
       <div className="flex flex-wrap items-center gap-2.5">
         
         {/* Department Filter */}
@@ -148,13 +149,23 @@ export const AttendanceDateFilter = ({
           </div>
         )}
 
+        {/* CSV Export Button */}
+        <button
+          onClick={onExportCSV}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-100 hover:bg-surface-50 border border-slate-700/60 text-slate-300 hover:text-white text-xs font-semibold transition-all"
+          title="Export attendance table to CSV"
+        >
+          <Download className="w-3.5 h-3.5 text-slate-400" />
+          <span>Export CSV</span>
+        </button>
+
         {/* Manual Mark/Override Button */}
         <button
           onClick={onOpenMarkModal}
           className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-500/15 hover:bg-brand-500/25 border border-brand-500/30 text-brand-300 text-xs font-semibold transition-all shadow-sm"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>Manual Entry / Override</span>
+          <span>Log / Override</span>
         </button>
       </div>
     </div>

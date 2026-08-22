@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useHRMS } from '../../context/HRMSContext';
 import { Modal } from '../common/Modal';
 import { formatCurrency, getStatusBadgeStyle } from '../../utils/helpers';
+import { validateEmail, validatePhone, validateRequired, validatePositiveNumber } from '../../utils/validation';
 import {
   User,
   Briefcase,
@@ -20,7 +21,7 @@ import {
   CreditCard,
   Receipt,
   PieChart,
-  CheckCircle2,
+  AlertCircle,
   Sparkles
 } from 'lucide-react';
 
@@ -40,29 +41,39 @@ export const EmployeeProfileModal = () => {
   const [activeTab, setActiveTab] = useState('personal'); // 'personal' | 'job' | 'salary'
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(null);
+  const [errors, setErrors] = useState({});
 
   // Sync form state when modal opens or employee changes
   useEffect(() => {
     if (employee) {
       setFormData(JSON.parse(JSON.stringify(employee)));
       setIsEditing(false);
+      setErrors({});
     }
   }, [employee]);
 
-  // Reset tab if HR Officer was somehow on salary tab
-  useEffect(() => {
-    if (role !== 'admin' && activeTab === 'salary') {
-      // Keep salary tab active so they can see the role restriction screen, or let them switch
-    }
-  }, [role, activeTab]);
-
   if (!employee || !formData) return null;
+
+  const validateField = (field, value) => {
+    let error = null;
+    if (field === 'name') error = validateRequired(value, 'Full Name');
+    if (field === 'email') error = validateEmail(value);
+    if (field === 'phone') error = validatePhone(value);
+    if (field === 'role') error = validateRequired(value, 'Job Role');
+
+    setErrors((prev) => ({
+      ...prev,
+      [field]: error
+    }));
+    return error;
+  };
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value
     }));
+    validateField(field, value);
   };
 
   const handleNestedChange = (parent, field, value) => {
@@ -123,6 +134,9 @@ export const EmployeeProfileModal = () => {
 
   const handleWageChange = (value) => {
     const wage = parseFloat(value) || 0;
+    const wageErr = validatePositiveNumber(value, 'Monthly Wage');
+    setErrors((prev) => ({ ...prev, monthlyWage: wageErr }));
+
     setFormData((prev) => {
       const totalAllowances = Object.values(prev.salary?.allowances || {}).reduce((a, b) => a + b, 0);
       const totalDeductions = Object.values(prev.salary?.taxDeductions || {}).reduce((a, b) => a + b, 0);
@@ -144,13 +158,32 @@ export const EmployeeProfileModal = () => {
   };
 
   const handleSave = () => {
+    // Validate all fields
+    const nameErr = validateRequired(formData.name, 'Full Name');
+    const emailErr = validateEmail(formData.email);
+    const phoneErr = validatePhone(formData.phone);
+    const roleErr = validateRequired(formData.role, 'Job Role');
+
+    const newErrors = {};
+    if (nameErr) newErrors.name = nameErr;
+    if (emailErr) newErrors.email = emailErr;
+    if (phoneErr) newErrors.phone = phoneErr;
+    if (roleErr) newErrors.role = roleErr;
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
     updateEmployee(formData);
     setIsEditing(false);
+    setErrors({});
   };
 
   const handleCancel = () => {
     setFormData(JSON.parse(JSON.stringify(employee)));
     setIsEditing(false);
+    setErrors({});
   };
 
   const tabs = [
@@ -160,8 +193,7 @@ export const EmployeeProfileModal = () => {
       id: 'salary', 
       label: 'Salary Info', 
       icon: DollarSign,
-      restricted: role !== 'admin',
-      badge: role === 'admin' ? 'Admin' : 'Locked'
+      restricted: role !== 'admin'
     }
   ];
 
@@ -268,15 +300,20 @@ export const EmployeeProfileModal = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                Full Name
+                Full Name *
               </label>
               {isEditing ? (
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="w-full bg-[#161928] border border-[#23273a] focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-                />
+                <div>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    className={`w-full bg-[#161928] border rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none transition-colors ${
+                      errors.name ? 'border-rose-500 focus:ring-1 focus:ring-rose-500' : 'border-[#23273a] focus:border-brand-500'
+                    }`}
+                  />
+                  {errors.name && <p className="text-[11px] text-rose-400 mt-1">{errors.name}</p>}
+                </div>
               ) : (
                 <div className="p-3 rounded-xl bg-[#161928] border border-[#23273a] text-sm text-white font-medium">
                   {formData.name}
@@ -286,15 +323,20 @@ export const EmployeeProfileModal = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                Email Address
+                Email Address *
               </label>
               {isEditing ? (
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className="w-full bg-[#161928] border border-[#23273a] focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-                />
+                <div>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    className={`w-full bg-[#161928] border rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none transition-colors ${
+                      errors.email ? 'border-rose-500 focus:ring-1 focus:ring-rose-500' : 'border-[#23273a] focus:border-brand-500'
+                    }`}
+                  />
+                  {errors.email && <p className="text-[11px] text-rose-400 mt-1">{errors.email}</p>}
+                </div>
               ) : (
                 <div className="p-3 rounded-xl bg-[#161928] border border-[#23273a] text-sm text-white font-medium flex items-center gap-2">
                   <Mail className="w-4 h-4 text-slate-400" />
@@ -305,15 +347,20 @@ export const EmployeeProfileModal = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                Phone Number
+                Phone Number *
               </label>
               {isEditing ? (
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
-                  className="w-full bg-[#161928] border border-[#23273a] focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-                />
+                <div>
+                  <input
+                    type="text"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    className={`w-full bg-[#161928] border rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none transition-colors ${
+                      errors.phone ? 'border-rose-500 focus:ring-1 focus:ring-rose-500' : 'border-[#23273a] focus:border-brand-500'
+                    }`}
+                  />
+                  {errors.phone && <p className="text-[11px] text-rose-400 mt-1">{errors.phone}</p>}
+                </div>
               ) : (
                 <div className="p-3 rounded-xl bg-[#161928] border border-[#23273a] text-sm text-white font-medium flex items-center gap-2">
                   <Phone className="w-4 h-4 text-slate-400" />
@@ -331,7 +378,7 @@ export const EmployeeProfileModal = () => {
                   type="date"
                   value={formData.dob}
                   onChange={(e) => handleInputChange('dob', e.target.value)}
-                  className="w-full bg-[#161928] border border-[#23273a] focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  className="w-full bg-[#161928] border border-[#23273a] focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none"
                 />
               ) : (
                 <div className="p-3 rounded-xl bg-[#161928] border border-[#23273a] text-sm text-white font-medium flex items-center gap-2">
@@ -349,7 +396,7 @@ export const EmployeeProfileModal = () => {
                 <select
                   value={formData.gender}
                   onChange={(e) => handleInputChange('gender', e.target.value)}
-                  className="w-full bg-[#161928] border border-[#23273a] focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  className="w-full bg-[#161928] border border-[#23273a] focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none"
                 >
                   <option value="Female">Female</option>
                   <option value="Male">Male</option>
@@ -372,7 +419,7 @@ export const EmployeeProfileModal = () => {
                   type="text"
                   value={formData.address}
                   onChange={(e) => handleInputChange('address', e.target.value)}
-                  className="w-full bg-[#161928] border border-[#23273a] focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  className="w-full bg-[#161928] border border-[#23273a] focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none"
                 />
               ) : (
                 <div className="p-3 rounded-xl bg-[#161928] border border-[#23273a] text-sm text-white font-medium flex items-center gap-2 truncate">
@@ -440,15 +487,20 @@ export const EmployeeProfileModal = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                Job Role / Title
+                Job Role / Title *
               </label>
               {isEditing ? (
-                <input
-                  type="text"
-                  value={formData.role}
-                  onChange={(e) => handleInputChange('role', e.target.value)}
-                  className="w-full bg-[#161928] border border-[#23273a] focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none"
-                />
+                <div>
+                  <input
+                    type="text"
+                    value={formData.role}
+                    onChange={(e) => handleInputChange('role', e.target.value)}
+                    className={`w-full bg-[#161928] border rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none ${
+                      errors.role ? 'border-rose-500' : 'border-[#23273a] focus:border-brand-500'
+                    }`}
+                  />
+                  {errors.role && <p className="text-[11px] text-rose-400 mt-1">{errors.role}</p>}
+                </div>
               ) : (
                 <div className="p-3 rounded-xl bg-[#161928] border border-[#23273a] text-sm text-white font-medium">
                   {formData.role}
@@ -650,14 +702,17 @@ export const EmployeeProfileModal = () => {
                 <div className="p-4 rounded-2xl bg-[#161928] border border-[#23273a]">
                   <span className="text-xs font-semibold text-slate-400 uppercase">Monthly Base Wage</span>
                   {isEditing ? (
-                    <div className="mt-1 flex items-center gap-1">
-                      <span className="text-white text-lg font-bold">$</span>
-                      <input
-                        type="number"
-                        value={formData.salary?.monthlyWage || 0}
-                        onChange={(e) => handleWageChange(e.target.value)}
-                        className="w-full bg-[#131622] border border-brand-500/50 rounded-lg px-2.5 py-1 text-base font-bold text-white focus:outline-none"
-                      />
+                    <div className="mt-1">
+                      <div className="flex items-center gap-1">
+                        <span className="text-white text-lg font-bold">$</span>
+                        <input
+                          type="number"
+                          value={formData.salary?.monthlyWage || 0}
+                          onChange={(e) => handleWageChange(e.target.value)}
+                          className="w-full bg-[#131622] border border-brand-500/50 rounded-lg px-2.5 py-1 text-base font-bold text-white focus:outline-none"
+                        />
+                      </div>
+                      {errors.monthlyWage && <p className="text-[10px] text-rose-400 mt-1">{errors.monthlyWage}</p>}
                     </div>
                   ) : (
                     <h4 className="text-2xl font-black text-white mt-1">

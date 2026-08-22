@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useHRMS } from '../../context/HRMSContext';
 import { NotificationPanel } from './NotificationPanel';
 import {
+  LayoutDashboard,
   Users,
   Clock,
   CalendarCheck2,
@@ -13,7 +14,6 @@ import {
   Sparkles,
   LogOut,
   User,
-  Settings,
   Layers
 } from 'lucide-react';
 
@@ -44,19 +44,20 @@ export const TopNav = () => {
   }, []);
 
   const navLinks = [
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
     { to: '/employees', label: 'Employee', icon: Users, badge: null },
     { to: '/attendance', label: 'Attendance', icon: Clock, badge: null },
     { to: '/time-off', label: 'Time Off', icon: CalendarCheck2, badge: pendingLeavesCount > 0 ? pendingLeavesCount : null }
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-[#23273a] bg-[#0c0e17]/90 backdrop-blur-md">
+    <header className="sticky top-0 z-40 w-full border-b border-[#23273a] bg-[#0c0e17]/95 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-18">
           
           {/* LEFT: Logo Branding */}
-          <div className="flex items-center gap-8">
-            <NavLink to="/employees" className="flex items-center gap-3 group">
+          <div className="flex items-center gap-6 lg:gap-8">
+            <NavLink to="/dashboard" className="flex items-center gap-3 group">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-brand-500 to-accent-fuchsia flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.35)] group-hover:scale-105 transition-transform duration-200">
                 <Layers className="w-5 h-5 text-white stroke-[2.2]" />
               </div>
@@ -67,21 +68,21 @@ export const TopNav = () => {
                     HRMS
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-400 font-medium tracking-wide">Admin Workspace</span>
+                <span className="text-[10px] text-slate-400 font-medium tracking-wide">Officer & Admin Workspace</span>
               </div>
             </NavLink>
 
             {/* Navigation Tabs */}
-            <nav className="hidden md:flex items-center gap-1 bg-[#141624]/70 p-1 rounded-xl border border-[#23273a]">
+            <nav className="hidden md:flex items-center gap-1 bg-[#141624]/80 p-1 rounded-xl border border-[#23273a]">
               {navLinks.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname.startsWith(item.to) || (item.to === '/employees' && location.pathname === '/');
+                const isActive = location.pathname.startsWith(item.to) || (item.to === '/dashboard' && location.pathname === '/');
 
                 return (
                   <NavLink
                     key={item.to}
                     to={item.to}
-                    className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    className={`relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs lg:text-sm font-semibold transition-all duration-200 ${
                       isActive
                         ? 'bg-brand-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.35)]'
                         : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
@@ -90,7 +91,7 @@ export const TopNav = () => {
                     <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                     <span>{item.label}</span>
                     {item.badge !== null && (
-                      <span className={`px-1.5 py-0.2 text-[11px] font-bold rounded-full ${
+                      <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded-full ${
                         isActive 
                           ? 'bg-white text-brand-700' 
                           : 'bg-brand-500/20 text-brand-300 border border-brand-500/30'
@@ -111,7 +112,7 @@ export const TopNav = () => {
             <div className="flex items-center">
               <button
                 onClick={toggleRole}
-                title="Click to switch between Administrator and HR Officer role"
+                title="Click to toggle between Administrator and HR Officer role"
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all duration-200 ${
                   role === 'admin'
                     ? 'bg-brand-500/10 border-brand-500/30 text-brand-300 hover:bg-brand-500/20 shadow-[0_0_12px_rgba(168,85,247,0.15)]'
@@ -198,7 +199,7 @@ export const TopNav = () => {
                           ? 'bg-brand-500/15 text-brand-300 border-brand-500/30' 
                           : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
                       }`}>
-                        {role === 'admin' ? 'Administrator Privilege' : 'HR Officer Privilege'}
+                        {role === 'admin' ? 'Administrator Clearance' : 'HR Officer Clearance'}
                       </span>
                     </div>
                   </div>
@@ -251,7 +252,7 @@ export const TopNav = () => {
         <div className="flex md:hidden py-2.5 border-t border-[#23273a] gap-2 overflow-x-auto">
           {navLinks.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname.startsWith(item.to) || (item.to === '/employees' && location.pathname === '/');
+            const isActive = location.pathname.startsWith(item.to) || (item.to === '/dashboard' && location.pathname === '/');
 
             return (
               <NavLink
@@ -300,12 +301,12 @@ export const TopNav = () => {
               </div>
               <div className="flex justify-between py-1 border-b border-white/5">
                 <span className="text-slate-400">Department</span>
-                <span className="font-semibold text-white">Management & HR Operations</span>
+                <span className="font-semibold text-white">HR & People Operations</span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-slate-400">Access Level</span>
+                <span className="text-slate-400">Compensation Access</span>
                 <span className="font-semibold text-emerald-400">
-                  {role === 'admin' ? 'Unrestricted (Salary & System)' : 'HR Management (Restricted Salary)'}
+                  {role === 'admin' ? 'Unrestricted Admin' : 'Restricted (Shielded)'}
                 </span>
               </div>
             </div>
